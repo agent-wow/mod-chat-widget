@@ -1,0 +1,29 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "mod-chat-logger-receiver",
+      "devDependencies": {
+        "@types/node": "24.0.0",
+        "typescript": "5.9.3",
+      },
+    },
+  },
+  "packages": {
+    "@types/node": [
+      "@types/node@24.0.0", "", { "dependencies": { "undici-types": "7.8.0" } },
+      "sha512-yZQa2zm87aRVcqDyH5+4Hv9KYgSdgwX1rFnGvpbzMaC7YAljmhBET93TPiTd3ObwTL+gSpIzPKg5BqVxdCvxKg=="
+    ],
+
+    "typescript": [
+      "typescript@5.9.3", "", {},
+      "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="
+    ],
+
+    "undici-types": [
+      "undici-types@7.8.0", "", {},
+      "sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw=="
+    ],
+  }
+}

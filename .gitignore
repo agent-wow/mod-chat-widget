@@ -1,0 +1,9 @@
+# Local builds, dependencies, configuration, and captured chat logs.
+build/
+node_modules/
+CMakeUserPresets.json
+conf/*.conf
+.env
+.env.*
+*.log
+*.jsonl

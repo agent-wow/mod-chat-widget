@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "source_id": "realm-1",
+  "events": [
+    {
+      "event_id": "97022b65-0e9a-4a32-bf17-836688338308:1",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "incoming",
+      "observation": "client_submission",
+      "opcode": "CMSG_MESSAGECHAT",
+      "opcode_id": 149,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "name": "Alice"
+      },
+      "target": null,
+      "channel": null,
+      "text": "hello",
+      "chat_type": "GUILD",
+      "chat_type_id": 4,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    }
+  ]
+}

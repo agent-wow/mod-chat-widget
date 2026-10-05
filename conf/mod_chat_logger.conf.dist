@@ -1,0 +1,28 @@
+[worldserver]
+
+# All settings are startup-only. Restart worldserver after changing them.
+# Enabled by default; an empty Endpoint keeps the logger inactive with no queue or worker.
+ChatLogger.Enable = 1
+ChatLogger.CaptureIncoming = 1
+ChatLogger.CaptureOutgoing = 1
+
+# Full HTTP/HTTPS ingestion URL. HTTPS verifies the certificate and hostname.
+# The service must acknowledge the entire batch with HTTP 2xx and deduplicate event_id.
+ChatLogger.Endpoint = ""
+ChatLogger.BearerToken = ""
+ChatLogger.CAFile = ""
+
+# Omit SourceId to use realm-<RealmID>. Set a unique value for each server installation.
+# ChatLogger.SourceId = "realm-1"
+
+# Events remain charged while in flight. QueueBytes includes reserved batch/request space.
+ChatLogger.QueueEvents = 10000
+ChatLogger.QueueBytes = 16777216
+ChatLogger.BatchEvents = 100
+ChatLogger.BatchBytes = 524288
+ChatLogger.PacketBytes = 65536
+ChatLogger.FlushMs = 1000
+
+# ConnectTimeoutMs covers DNS + TCP + TLS; RequestTimeoutMs covers the whole request.
+ChatLogger.ConnectTimeoutMs = 3000
+ChatLogger.RequestTimeoutMs = 5000
