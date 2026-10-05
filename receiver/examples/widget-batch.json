@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "source_id": "realm-1",
+  "events": [
+    {
+      "event_id": "widget-example:1",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": null,
+        "name": null
+      },
+      "target": null,
+      "channel": null,
+      "text": "Welcome to Azeroth. Your journey continues.",
+      "chat_type": "SYSTEM",
+      "chat_type_id": 0,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    },
+    {
+      "event_id": "widget-example:2",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": null,
+        "name": "Bob"
+      },
+      "target": null,
+      "channel": null,
+      "text": "Anyone up for a heroic after this?",
+      "chat_type": "GUILD",
+      "chat_type_id": 4,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    },
+    {
+      "event_id": "widget-example:3",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "name": "Alice"
+      },
+      "target": null,
+      "channel": null,
+      "text": "Count me in. Just heading back to Dalaran.",
+      "chat_type": "GUILD",
+      "chat_type_id": 4,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    },
+    {
+      "event_id": "widget-example:4",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": null,
+        "name": "Lyra"
+      },
+      "target": null,
+      "channel": null,
+      "text": "Ready when you are.",
+      "chat_type": "PARTY",
+      "chat_type_id": 2,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    },
+    {
+      "event_id": "widget-example:5",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": null,
+        "name": "Bob"
+      },
+      "target": null,
+      "channel": null,
+      "text": "Look what dropped: |cffa335ee|Hitem:40384:0:0:0:0:0:0:0|h[Betrayer of Humanity]|h|r",
+      "chat_type": "SAY",
+      "chat_type_id": 1,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    },
+    {
+      "event_id": "widget-example:6",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": null,
+        "name": "Lyra"
+      },
+      "target": null,
+      "channel": null,
+      "text": "I saved you a spot.",
+      "chat_type": "WHISPER",
+      "chat_type_id": 7,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    },
+    {
+      "event_id": "widget-example:7",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": null,
+        "name": "Lyra"
+      },
+      "target": null,
+      "channel": null,
+      "text": "Thanks! Be there in a minute.",
+      "chat_type": "WHISPER_INFORM",
+      "chat_type_id": 9,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    },
+    {
+      "event_id": "widget-example:8",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "name": "Alice"
+      },
+      "target": null,
+      "channel": null,
+      "text": "waves at everyone.",
+      "chat_type": "EMOTE",
+      "chat_type_id": 10,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    },
+    {
+      "event_id": "widget-example:9",
+      "captured_at": "2026-10-05T10:00:00.123Z",
+      "direction": "outgoing",
+      "observation": "send_attempt",
+      "opcode": "SMSG_MESSAGECHAT",
+      "opcode_id": 150,
+      "event_kind": "chat",
+      "session": {
+        "account_id": 10,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Alice",
+        "locale": "enUS"
+      },
+      "sender": {
+        "guid": null,
+        "name": "Bob"
+      },
+      "target": null,
+      "channel": "General - Dalaran",
+      "text": "Looking for one more healer for a relaxed dungeon run. All welcome!",
+      "chat_type": "CHANNEL",
+      "chat_type_id": 17,
+      "language": 7,
+      "notice": null,
+      "emote": null,
+      "decoding_status": "ok",
+      "raw_packet_base64": null
+    }
+  ]
+}

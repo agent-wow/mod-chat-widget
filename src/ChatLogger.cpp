@@ -230,6 +230,8 @@ public:
         try
         {
             auto session = player->GetSession();
+            if (!session || session->IsHeadless())
+                return;
             SessionInfo info;
             info.AccountId = session->GetAccountId();
             info.CharacterGuid = player->GetGUID().ToString();
@@ -272,7 +274,7 @@ public:
                     info = itr->second;
             }
             // Logged-in incoming handlers own the player for this call. Outgoing callbacks may run
-            // on other threads, so they use login/logout snapshots rather than dereferencing Player.
+            // on other threads, so they use lifecycle snapshots rather than dereferencing Player.
             if (direction == Direction::Incoming)
                 if (auto player = session->GetPlayer())
                 {
@@ -339,9 +341,13 @@ class ChatLoggerPlayer final : public PlayerScript
 {
 public:
     explicit ChatLoggerPlayer(std::shared_ptr<Service> service) :
-        PlayerScript("ChatLoggerPlayer", {PLAYERHOOK_ON_LOGIN, PLAYERHOOK_ON_BEFORE_LOGOUT}),
+        PlayerScript("ChatLoggerPlayer", {PLAYERHOOK_ON_LOAD_FROM_DB, PLAYERHOOK_ON_LOGIN,
+            PLAYERHOOK_ON_BEFORE_LOGOUT}),
         _service(std::move(service)) { }
 
+    // MOTD and other login packets are sent before OnPlayerLogin. LoadFromDB already has the verified
+    // character identity here, after its failure checks and before the session sends those packets.
+    void OnPlayerLoadFromDB(Player* player) override { _service->Login(player); }
     void OnPlayerLogin(Player* player) override { _service->Login(player); }
     void OnPlayerBeforeLogout(Player* player) override { _service->Logout(player); }
 

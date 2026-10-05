@@ -2,20 +2,20 @@
   "name": "mod-chat-logger-receiver",
   "version": "1.0.0",
   "private": true,
-  "description": "Standalone stdout receiver for mod-chat-logger JSON batches",
+  "description": "Bun-native chat receiver with SQLite history and an OBS character chat widget",
   "license": "GPL-2.0-or-later",
   "type": "module",
   "engines": {
-    "node": ">=24.0.0"
+    "bun": ">=1.4.2"
   },
   "packageManager": "bun@1.4.2",
   "scripts": {
-    "start": "node src/main.ts",
-    "check": "tsc --noEmit",
-    "test": "node --test --test-timeout=15000 test/*.test.ts"
+    "start": "bun src/main.ts",
+    "check": "bun ./node_modules/typescript/bin/tsc --noEmit",
+    "test": "bun test --timeout 15000"
   },
   "devDependencies": {
-    "@types/node": "24.0.0",
+    "@types/bun": "1.4.2",
     "typescript": "5.9.3"
   }
 }

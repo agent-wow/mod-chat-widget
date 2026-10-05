@@ -19,7 +19,7 @@ ChatLogger.SourceId = "production-realm-1"
 ChatLogger.BearerToken = "your-token"
 ```
 
-The endpoint above is an example. A standalone [TypeScript stdout receiver](receiver/README.md) is included
+The endpoint above is an example. A standalone [Bun receiver and OBS chat widget](receiver/README.md) is included
 for reference and can run independently of AzerothCore. Settings are read at startup;
 `.reload config` does not change the running logger. The module is enabled by default. An empty or
 whitespace-only endpoint leaves it inactive: no worker, queue, or network activity is started, and gameplay
@@ -116,8 +116,10 @@ The module sends `POST` with `Content-Type: application/json`, optionally
 - GUIDs use AzerothCore's `ObjectGuid::ToString()` format. Null GUID/name members indicate missing data.
   Normal player chat packets contain sender GUIDs without sender names. Embedded NPC/GM names are retained.
 - Recipient character identity uses snapshots from player lifecycle hooks so outgoing callbacks never
-  dereference a player on another thread. Character fields can be null during login/logout; account ID
-  and locale still identify the session. No database queries or background world-object lookups occur.
+  dereference a player on another thread. The database-load hook records identity before MOTD and other
+  login packets; the login hook refreshes it and the logout hook clears it. Character fields can still
+  be null before character loading or during logout; account ID and locale remain available.
+  No database queries or background world-object lookups occur.
 - `target` is an explicit packet target, such as a whisper destination, and is distinct from the session
   recipient. Incoming whisper names survive even when the player cannot be resolved. Outgoing packets
   with a zero target GUID produce an actor object with null members. Guild/group IDs are not in these packets.

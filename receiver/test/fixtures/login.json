@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "source_id": "realm-1",
+  "events": [
+    {
+      "captured_at": "2026-10-05T10:59:53.238Z",
+      "channel": null,
+      "chat_type": null,
+      "chat_type_id": null,
+      "decoding_status": "ok",
+      "direction": "outgoing",
+      "emote": null,
+      "event_kind": "notice",
+      "language": null,
+      "observation": "send_attempt",
+      "opcode": "SMSG_MOTD",
+      "opcode_id": 829,
+      "raw_packet_base64": null,
+      "sender": null,
+      "session": {
+        "account_id": 1,
+        "character_guid": null,
+        "character_name": null,
+        "locale": "enUS"
+      },
+      "target": null,
+      "text": null,
+      "event_id": "8ef8c877-64b2-42e0-ad91-586466457f84:25",
+      "notice": {
+        "lines": [
+          "Welcome to an AzerothCore server.",
+          "|cffFF4A2DThis server runs on AzerothCore|r |cff3CE7FFwww.azerothcore.org|r"
+        ]
+      }
+    },
+    {
+      "captured_at": "2026-10-05T10:59:53.357Z",
+      "channel": "General - GM Island",
+      "chat_type": null,
+      "chat_type_id": null,
+      "decoding_status": "ok",
+      "direction": "outgoing",
+      "emote": null,
+      "event_kind": "notice",
+      "language": null,
+      "observation": "send_attempt",
+      "opcode": "SMSG_CHANNEL_NOTIFY",
+      "opcode_id": 153,
+      "raw_packet_base64": null,
+      "sender": null,
+      "session": {
+        "account_id": 1,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Peon",
+        "locale": "enUS"
+      },
+      "target": null,
+      "text": null,
+      "event_id": "8ef8c877-64b2-42e0-ad91-586466457f84:26",
+      "notice": {
+        "channel_id": 1,
+        "flags": 24,
+        "id": 2,
+        "instance_id": 0
+      }
+    },
+    {
+      "captured_at": "2026-10-05T10:59:53.357Z",
+      "channel": "LocalDefense - GM Island",
+      "chat_type": null,
+      "chat_type_id": null,
+      "decoding_status": "ok",
+      "direction": "outgoing",
+      "emote": null,
+      "event_kind": "notice",
+      "language": null,
+      "observation": "send_attempt",
+      "opcode": "SMSG_CHANNEL_NOTIFY",
+      "opcode_id": 153,
+      "raw_packet_base64": null,
+      "sender": null,
+      "session": {
+        "account_id": 1,
+        "character_guid": "GUID Full: 0x0000000000000001 Type: Player Low: 1",
+        "character_name": "Peon",
+        "locale": "enUS"
+      },
+      "target": null,
+      "text": null,
+      "event_id": "8ef8c877-64b2-42e0-ad91-586466457f84:27",
+      "notice": {
+        "channel_id": 22,
+        "flags": 24,
+        "id": 2,
+        "instance_id": 0
+      }
+    }
+  ]
+}
