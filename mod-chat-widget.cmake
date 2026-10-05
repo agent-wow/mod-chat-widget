@@ -1,7 +1,7 @@
-# The core discovers src/ and calls Addmod_chat_loggerScripts automatically.
+# The core discovers src/ and calls Addmod_chat_widgetScripts automatically.
 include_guard(GLOBAL)
 
-if(BUILD_TESTING AND NOT MODULE_MOD-CHAT-LOGGER STREQUAL "disabled")
+if(BUILD_TESTING AND NOT MODULE_MOD-CHAT-WIDGET STREQUAL "disabled")
   set_property(GLOBAL APPEND PROPERTY ACORE_MODULE_TEST_SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/tests/ChatLoggerEventTest.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/tests/ChatLoggerDeliveryTest.cpp"
@@ -10,7 +10,7 @@ if(BUILD_TESTING AND NOT MODULE_MOD-CHAT-LOGGER STREQUAL "disabled")
     "${CMAKE_CURRENT_LIST_DIR}/src")
 
   # Dynamic module symbols are private. Compile the non-hook components into tests in this mode.
-  if(MODULE_MOD-CHAT-LOGGER STREQUAL "dynamic")
+  if(MODULE_MOD-CHAT-WIDGET STREQUAL "dynamic")
     set_property(GLOBAL APPEND PROPERTY ACORE_MODULE_TEST_SOURCES
       "${CMAKE_CURRENT_LIST_DIR}/src/ChatLoggerEvent.cpp"
       "${CMAKE_CURRENT_LIST_DIR}/src/ChatLoggerDelivery.cpp"

@@ -1,16 +1,16 @@
-# mod-chat-logger
+# mod-chat-widget
 An external AzerothCore module for observing incoming player chat submissions and outgoing chat/notices,
 then forwarding JSON batches to an HTTP service. It requires no SQL or core changes. This directory is
 intentionally ignored by the parent AzerothCore repository; manage or distribute it as a separate module.
 
 ## Installation and configuration
 
-Place this directory at `modules/mod-chat-logger`. AzerothCore discovers its `src/` loader and installs
-`conf/mod_chat_logger.conf.dist` using the standard module build. Static and dynamic module modes are
+Place this directory at `modules/mod-chat-widget`. AzerothCore discovers its `src/` loader and installs
+`conf/mod_chat_widget.conf.dist` using the standard module build. Static and dynamic module modes are
 supported. No dependency download takes place during CMake configuration.
 
 After building/installing through your normal AzerothCore workflow, copy the installed `.conf.dist` to
-`mod_chat_logger.conf` in the server's module configuration directory. Set:
+`mod_chat_widget.conf` in the server's module configuration directory. Set:
 
 ```ini
 ChatLogger.Enable = 1
@@ -18,6 +18,12 @@ ChatLogger.Endpoint = "https://collector.example.org/chat"
 ChatLogger.SourceId = "production-realm-1"
 ChatLogger.BearerToken = "your-token"
 ```
+
+When upgrading from `mod-chat-logger`, rename the module directory and rerun your normal CMake
+configuration/build/install workflow. Move your installed `mod_chat_logger.conf` to `mod_chat_widget.conf`
+before starting the rebuilt server. Existing `ChatLogger.*` options and receiver `CHAT_LOGGER_*`
+environment variables keep their names and values. Update any `MODULE_MOD-CHAT-LOGGER` or
+`DISABLED_AC_MODULES` overrides to use the new module name (`MODULE_MOD-CHAT-WIDGET` or `mod-chat-widget`).
 
 The endpoint above is an example. A standalone [Bun receiver and OBS chat widget](receiver/README.md) is included
 for reference and can run independently of AzerothCore. Settings are read at startup;
@@ -188,7 +194,7 @@ After explicitly configuring/building a testing checkout, run the `ChatLogger*` 
 Run the existing C++ style checker with this module as its working directory to check authored `src/`:
 
 ```sh
-cd modules/mod-chat-logger
+cd modules/mod-chat-widget
 python3 ../../apps/codestyle/codestyle-cpp.py
 ```
 

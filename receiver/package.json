@@ -1,5 +1,5 @@
 {
-  "name": "mod-chat-logger-receiver",
+  "name": "mod-chat-widget-receiver",
   "version": "1.0.0",
   "private": true,
   "description": "Bun-native chat receiver with SQLite history and an OBS character chat widget",
