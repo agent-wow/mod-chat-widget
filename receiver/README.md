@@ -1,6 +1,6 @@
-# Chat logger receiver and OBS widget
+# OBS chat widget receiver
 
-A standalone Bun HTTP receiver for `mod-chat-logger`. It writes complete batches to stdout, keeps bounded
+A standalone Bun HTTP receiver for `mod-chat-widget`. It writes complete batches to stdout, keeps bounded
 character chat history in SQLite, and serves a read-only WoW-style chat panel for OBS.
 The entire `receiver/` directory can be copied to another machine. Runtime dependencies are built into Bun;
 no AzerothCore installation, database server, frontend build, or package installation is needed to run it.
@@ -40,7 +40,7 @@ can query captured character chat, including whispers and officer chat. The inge
 
 ## Connect the module
 
-For a receiver on the same machine, set these values in `mod_chat_logger.conf` and restart worldserver:
+For a receiver on the same machine, set these values in `mod_chat_widget.conf` and restart worldserver:
 
 ```ini
 ChatLogger.Enable = 1

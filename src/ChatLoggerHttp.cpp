@@ -42,7 +42,7 @@ public:
         _request.target(_options.Destination.Target);
         _request.set(Http::field::host, _options.Destination.Authority);
         _request.set(Http::field::content_type, "application/json");
-        _request.set(Http::field::user_agent, "AzerothCore-mod-chat-logger/1");
+        _request.set(Http::field::user_agent, "AzerothCore-mod-chat-widget/1");
         _request.keep_alive(false);
         if (!_options.BearerToken.empty())
             _request.set(Http::field::authorization, "Bearer " + _options.BearerToken);

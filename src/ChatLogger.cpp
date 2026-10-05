@@ -357,7 +357,7 @@ private:
 }
 }
 
-void Addmod_chat_loggerScripts()
+void Addmod_chat_widgetScripts()
 {
     auto service = std::make_shared<ChatLogger::Service>();
     new ChatLogger::ChatLoggerServer(service);
