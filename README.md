@@ -14,7 +14,7 @@ After building/installing through your normal AzerothCore workflow, copy the ins
 
 ```ini
 ChatLogger.Enable = 1
-ChatLogger.Endpoint = "https://collector.example.org/chat"
+ChatLogger.Endpoint = "https://collector.example.org/chats"
 ChatLogger.SourceId = "production-realm-1"
 ChatLogger.BearerToken = "your-token"
 ```

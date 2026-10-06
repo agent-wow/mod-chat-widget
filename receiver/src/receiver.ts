@@ -120,7 +120,7 @@ export function createReceiver(options: ReceiverOptions = {}) {
 
   async function ingest(request: Request): Promise<Response> {
     if (request.method !== "POST") {
-      return failure(405, "Use POST /chat", { Allow: "POST" });
+      return failure(405, "Use POST /chats", { Allow: "POST" });
     }
     if (expected && !crypto.timingSafeEqual(expected, digest(request.headers.get("authorization") ?? ""))) {
       return failure(401, "Unauthorized", { "WWW-Authenticate": "Bearer" });
@@ -180,7 +180,7 @@ export function createReceiver(options: ReceiverOptions = {}) {
   async function route(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url);
-      if (url.pathname === "/chat") {
+      if (url.pathname === "/chats") {
         return await ingest(request);
       }
       const asset = assets.get(url.pathname);
@@ -247,7 +247,7 @@ export function createReceiver(options: ReceiverOptions = {}) {
       maxRequestBodySize: MAX_BODY_BYTES,
       fetch(request, nativeServer) {
         // Enforce the body deadline ourselves; stdout may take longer to drain.
-        if (new URL(request.url).pathname === "/chat") {
+        if (new URL(request.url).pathname === "/chats") {
           nativeServer.timeout(request, 0);
         }
         if (stopping) {

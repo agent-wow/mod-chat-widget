@@ -107,7 +107,7 @@ test("invalid JSON, UTF-8 and metadata reject the whole batch without output", a
 test("routing, methods, content types and compression are validated", async () => {
   const { send, get } = fixture();
   expect((await get("/")).status).toBe(404);
-  const response = await get("/chat");
+  const response = await get("/chats");
   expect(response.status).toBe(405);
   expect(response.headers.get("allow")).toBe("POST");
   const invalidHeaders: Record<string, string>[] = [{ "Content-Type": "text/plain" }, { "Content-Encoding": "gzip" }];
@@ -119,7 +119,7 @@ test("routing, methods, content types and compression are validated", async () =
 test("declared and streamed bodies over 8 MiB receive 413", async () => {
   const { receiver, send, lines } = fixture();
   const response = await rawRequest(receiver.server.port!,
-    `POST /chat HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\n` +
+    `POST /chats HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\n` +
     `Content-Length: ${MAX_BODY_BYTES + 1}\r\n\r\n`);
   expect(response).toContain("413");
   const stream = new ReadableStream({
@@ -194,7 +194,7 @@ test("storage failure returns 503 after stdout, and a retry can recover", async 
 test("a slow incomplete body reaches the receive deadline and frees its slot", async () => {
   const { receiver, send } = fixture({ bodyTimeoutMs: 50 });
   const response = await rawRequest(receiver.server.port!,
-    "POST /chat HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\n" +
+    "POST /chats HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\n" +
     "Content-Length: 1000\r\n\r\n{");
   expect(response).toContain("408");
   expect(receiver.activeRequests).toBe(0);
@@ -207,7 +207,7 @@ test("aborted uploads free their slot and do not disable subsequent ingestion", 
     hostname: "127.0.0.1", port: receiver.server.port!,
     socket: {
       open(socket) {
-        socket.write("POST /chat HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n" +
+        socket.write("POST /chats HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n" +
           "Content-Length: 1000\r\n\r\n{");
       },
       data() {}, error() {},

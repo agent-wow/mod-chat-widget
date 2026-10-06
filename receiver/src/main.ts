@@ -24,7 +24,7 @@ async function main(): Promise<void> {
     store.close();
     throw new Error("Could not start chat receiver listener");
   }
-  console.error(`Chat logger receiver listening on ${config.host}:${receiver.server.port}, POST /chat, GET /widget`);
+  console.error(`Chat logger receiver listening on ${config.host}:${receiver.server.port}, POST /chats, GET /widget`);
   let stopping = false;
   function shutdown(): void {
     if (stopping) {
