@@ -2,6 +2,7 @@
 
 import { isBatch } from "./batch.ts";
 import { ChatStore } from "./store.ts";
+import { ChatStreams } from "./streams.ts";
 
 export { isBatch } from "./batch.ts";
 export type { Batch } from "./batch.ts";
@@ -109,6 +110,7 @@ export function createReceiver(options: ReceiverOptions = {}) {
   const output = options.output ?? stdoutOutput();
   const store = options.store ?? new ChatStore();
   const diagnostic = options.diagnostic ?? ((message) => console.error(message));
+  const streams = new ChatStreams(store, diagnostic);
   const digest = (value: string) => new Bun.CryptoHasher("sha256").update(value).digest();
   const expected = options.bearerToken ? digest(`Bearer ${options.bearerToken}`) : null;
   let outputFailed = false;
@@ -168,6 +170,7 @@ export function createReceiver(options: ReceiverOptions = {}) {
           throw new RequestError(503, "Receiver unavailable; retry this batch");
         }
         store.ingest(accepted);
+        streams.publish();
       });
       writeQueue = write.catch(() => {});
       await write;
@@ -197,7 +200,7 @@ export function createReceiver(options: ReceiverOptions = {}) {
           },
         });
       }
-      if (url.pathname !== "/api/characters" && url.pathname !== "/api/chat") {
+      if (!["/api/characters", "/api/chat", "/api/chat/stream"].includes(url.pathname)) {
         return failure(404, "Not found");
       }
       if (request.method !== "GET") {
@@ -217,6 +220,9 @@ export function createReceiver(options: ReceiverOptions = {}) {
       const name = url.searchParams.get("character");
       if (Boolean(guid) === Boolean(name)) {
         return failure(400, "Select exactly one character name or GUID");
+      }
+      if (url.pathname === "/api/chat/stream") {
+        return streams.response(request, source, guid, name);
       }
       if (name) {
         const matches = store.characters(source, name);
@@ -246,8 +252,8 @@ export function createReceiver(options: ReceiverOptions = {}) {
       hostname: options.host ?? "127.0.0.1", port: options.port ?? 3000, development: false,
       maxRequestBodySize: MAX_BODY_BYTES,
       fetch(request, nativeServer) {
-        // Enforce the body deadline ourselves; stdout may take longer to drain.
-        if (new URL(request.url).pathname === "/chats") {
+        // Uploads have their own deadline; SSE connections must survive idle periods.
+        if (["/chats", "/api/chat/stream"].includes(new URL(request.url).pathname)) {
           nativeServer.timeout(request, 0);
         }
         if (stopping) {
@@ -277,6 +283,7 @@ export function createReceiver(options: ReceiverOptions = {}) {
         const closed = server.stop();
         await Promise.allSettled([...pending]);
         await writeQueue;
+        streams.close();
         try {
           await output.close?.();
         } finally {

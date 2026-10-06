@@ -21,7 +21,7 @@ ChatLogger.QueueBytes = 16777216
 ChatLogger.BatchEvents = 100
 ChatLogger.BatchBytes = 524288
 ChatLogger.PacketBytes = 65536
-ChatLogger.FlushMs = 1000
+ChatLogger.FlushMs = 100
 
 # ConnectTimeoutMs covers DNS + TCP + TLS; RequestTimeoutMs covers the whole request.
 ChatLogger.ConnectTimeoutMs = 3000

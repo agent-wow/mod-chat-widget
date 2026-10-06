@@ -63,13 +63,14 @@ In separate containers or on different machines, replace loopback with the recei
 4. Use a separate Browser source and URL for each character.
 
 The panel has a translucent background, channel colors, outlined text, and bottom-aligned
-messages. It restores up to 100 recent events and polls every second. Messages do not fade, and there are
-no input fields, clickable chat links, or editing controls. The panel keeps its current messages during
-an outage, shows a small reconnecting status, and resumes automatically. OBS refreshes restore history.
+messages. It restores up to 100 recent events and receives live updates over Server-Sent Events (SSE).
+Messages do not fade, and there are no input fields, clickable chat links, or editing controls.
+The panel keeps its current messages during an outage, shows a small reconnecting status, and resumes
+automatically. OBS refreshes restore history.
 
 Both `source` and exactly one of `character` or `guid` are required. Character names match case-insensitively
 within a source. The widget resolves a name to a GUID and uses that identity until the page reloads.
-Unknown names show a waiting message and are retried; ambiguous names require a GUID. There is no
+Unknown names show a waiting message until ingestion identifies them; ambiguous names require a GUID. There is no
 unfiltered fallback. Use URL encoding for names, source IDs, and the module's full GUID strings.
 
 Discover known character identities:
@@ -155,7 +156,7 @@ exceeding that deadline forces exit with status 1. Diagnostics exclude request b
 
 ### Read APIs
 
-All read APIs use `GET`, return JSON, and send `Cache-Control: no-store`.
+All read APIs use `GET` and send `Cache-Control: no-store`. The history and discovery endpoints return JSON.
 
 - `/api/characters?source=realm-1` returns `{ "characters": [{ "guid": "…", "name": "Alice" }] }`.
   Optional `character=Alice` performs an exact case-insensitive name lookup, returning at most two matches
@@ -176,6 +177,27 @@ across restarts; replacing the database or pruning history causes a fresh snapsh
 ingestion and at most once per minute during reads. Count pruning happens on ingestion. Identity storage is
 also bounded by the same age and count settings. Events discarded by retention are no longer deduplicated.
 
+### Live stream
+
+`/api/chat/stream?source=realm-1&character=Alice` (or `guid=…`) returns `text/event-stream`.
+It uses the same source and character selection rules as history. The widget opens one stream and reconnects
+with its resolved GUID and last applied cursor after an outage, with backoff up to 30 seconds.
+
+- Each `chat` event contains the same JSON object as `/api/chat`; its SSE `id` is the response cursor.
+  The first event restores recent history. Subsequent events arrive after successful ingestion commits.
+  Catch-up pages are streamed automatically; viewers do not need to request each page.
+- Resume with `after=<cursor>` or the standard `Last-Event-ID` request header (which takes precedence).
+  Clients must apply `reset` and advance cursors even for empty pages, just as for JSON history.
+- An unresolved name produces a `status` event with `{ "status": 404, "error": "…" }` and waits on the
+  same connection until a batch identifies it. An ambiguous name produces status `409` and closes the
+  stream; select a GUID. Once resolved, the stream keeps that GUID even if the character is renamed.
+- Comment heartbeats are sent every 15 seconds without querying history. Slow viewers catch up from
+  SQLite as their connections drain; per-viewer queues do not grow with incoming batches. Disconnects
+  release subscriptions, and receiver shutdown closes active streams.
+
+Reverse proxies must allow long-lived responses without buffering. The receiver sends `X-Accel-Buffering: no`
+and disables Bun's idle timeout for this endpoint. SSE has the same unauthenticated viewing access as history.
+
 ## Development and tests
 
 Install the pinned development dependencies and run the checks:
@@ -189,7 +211,8 @@ bun run test
 The isolated tests use `bun:test`, temporary SQLite databases, ephemeral loopback listeners, standard
 `fetch`, Bun sockets, injected asynchronous outputs, and Bun subprocesses. They cover ingestion validation,
 output backpressure/failure, interrupted uploads, shutdown, recipient isolation, identity resolution,
-whispers, formatting, deduplication, transaction rollback, retention, cursor recovery, and standalone restart.
+whispers, formatting, deduplication, transaction rollback, retention, cursor recovery, SSE delivery/reconnection,
+slow viewers, stream cleanup, and standalone restart.
 No running game server is used. Browser assets are ordinary JavaScript and CSS, served directly by Bun.
 
 Authored code is GPL-2.0-or-later; see `LICENSE`.
