@@ -19,7 +19,7 @@ struct Limits
     std::size_t BatchEvents = 100;
     std::size_t BatchBytes = 512 * 1024;
     std::size_t PacketBytes = 64 * 1024;
-    std::chrono::milliseconds FlushInterval{1000};
+    std::chrono::milliseconds FlushInterval{100};
 };
 
 using DirectionCounts = std::array<std::atomic<std::uint64_t>, 2>;

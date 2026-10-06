@@ -145,7 +145,7 @@ including redirects and authentication errors, discard that batch and increment 
 
 ## Capacity, failure, and shutdown
 
-Defaults: 10,000 events, 16 MiB queue budget, batches of up to 100 events / 512 KiB, one-second flush,
+Defaults: 10,000 events, 16 MiB queue budget, batches of up to 100 events / 512 KiB, 100 ms flush,
 64 KiB maximum packet. Producers copy and enqueue under short locks and never wait for network I/O or
 queue space. At capacity, the newest event is dropped. Pending batches retain their queue reservation.
 

@@ -47,7 +47,7 @@ Settings ReadSettings(std::string const& endpoint)
     limits.BatchEvents = sConfigMgr->GetOption<uint32>("ChatLogger.BatchEvents", 100);
     limits.BatchBytes = sConfigMgr->GetOption<uint32>("ChatLogger.BatchBytes", 512 * 1024);
     limits.PacketBytes = sConfigMgr->GetOption<uint32>("ChatLogger.PacketBytes", 64 * 1024);
-    limits.FlushInterval = std::chrono::milliseconds(sConfigMgr->GetOption<uint32>("ChatLogger.FlushMs", 1000));
+    limits.FlushInterval = std::chrono::milliseconds(sConfigMgr->GetOption<uint32>("ChatLogger.FlushMs", 100));
     if (limits.QueueEvents > 1000000 || limits.BatchEvents > limits.QueueEvents ||
         limits.PacketBytes > 64 * 1024 || limits.BatchBytes > 8 * 1024 * 1024 ||
         limits.QueueBytes > 1024 * 1024 * 1024 || limits.FlushInterval > std::chrono::seconds(60))
