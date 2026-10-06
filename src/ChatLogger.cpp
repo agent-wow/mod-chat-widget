@@ -10,6 +10,7 @@
 #include "WorldPacket.h"
 #include "WorldScript.h"
 #include "WorldSession.h"
+#include "WorldSessionMgr.h"
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <algorithm>
@@ -122,6 +123,17 @@ public:
 
     void CaptureFailed() { ++_counters.CaptureFailures; }
 
+    void Presence(SessionInfo const& session, char const* presence)
+    {
+        CapturedPacket captured;
+        captured.Flow = Direction::Outgoing;
+        captured.CapturedAt = std::chrono::system_clock::now();
+        captured.Session = session;
+        captured.Presence = presence;
+        if (_queue.Push(std::move(captured)))
+            _wake.notify_one();
+    }
+
 private:
     void Report()
     {
@@ -219,7 +231,25 @@ public:
     void Stop()
     {
         if (auto runtime = _runtime.exchange(nullptr))
+        {
+            {
+                std::lock_guard lock(_identityMutex);
+                for (auto const& [account, info] : _identities)
+                {
+                    static_cast<void>(account);
+                    try
+                    {
+                        runtime->Presence(info, "offline");
+                    }
+                    catch (...)
+                    {
+                        runtime->CaptureFailed();
+                    }
+                }
+                _identities.clear();
+            }
             runtime->Stop();
+        }
     }
 
     void Login(Player* player) noexcept
@@ -238,6 +268,18 @@ public:
             info.CharacterName = player->GetName();
             info.Locale = localeNames[session->GetSessionDbcLocale()];
             std::lock_guard lock(_identityMutex);
+            if (auto itr = _identities.find(info.AccountId); itr != _identities.end() &&
+                itr->second.CharacterGuid == info.CharacterGuid)
+            {
+                info.LoginId = itr->second.LoginId;
+                info.StartedAt = itr->second.StartedAt;
+            }
+            else
+            {
+                info.LoginId = ProcessId();
+                info.StartedAt = FormatTimestamp(std::chrono::system_clock::now());
+            }
+            runtime->Presence(info, "online");
             _identities[info.AccountId] = std::move(info);
         }
         catch (...)
@@ -246,10 +288,50 @@ public:
         }
     }
 
-    void Logout(Player* player)
+    void Logout(Player* player) noexcept
     {
-        std::lock_guard lock(_identityMutex);
-        _identities.erase(player->GetSession()->GetAccountId());
+        auto runtime = _runtime.load();
+        if (!runtime)
+            return;
+        try
+        {
+            std::lock_guard lock(_identityMutex);
+            auto itr = _identities.find(player->GetSession()->GetAccountId());
+            if (itr == _identities.end())
+                return;
+            auto info = std::move(itr->second);
+            _identities.erase(itr);
+            runtime->Presence(info, "offline");
+        }
+        catch (...)
+        {
+            runtime->CaptureFailed();
+        }
+    }
+
+    void Update(uint32 diff) noexcept
+    {
+        auto runtime = _runtime.load();
+        if (!runtime)
+            return;
+        _elapsed += diff;
+        if (_elapsed < 5000)
+            return;
+        _elapsed %= 5000;
+        try
+        {
+            // This world hook runs after the map workers join; player access is safe for this tick.
+            std::lock_guard lock(_identityMutex);
+            for (auto const& [account, session] : sWorldSessionMgr->GetAllSessions())
+                if (auto player = session->GetPlayer(); player && !session->PlayerLogout())
+                    if (auto itr = _identities.find(account); itr != _identities.end())
+                        runtime->Presence(itr->second,
+                            player->IsInWorld() && !player->IsBeingTeleported() ? "online" : "unavailable");
+        }
+        catch (...)
+        {
+            runtime->CaptureFailed();
+        }
     }
 
     void Capture(WorldSession* session, WorldPacket const& packet, Direction direction) noexcept
@@ -293,6 +375,7 @@ private:
     std::atomic<std::shared_ptr<Runtime>> _runtime;
     std::mutex _identityMutex;
     std::unordered_map<uint32, SessionInfo> _identities;
+    uint32 _elapsed = 0;
 };
 
 class ChatLoggerServer final : public ServerScript
@@ -321,11 +404,13 @@ class ChatLoggerWorld final : public WorldScript
 {
 public:
     explicit ChatLoggerWorld(std::shared_ptr<Service> service) :
-        WorldScript("ChatLoggerWorld", {WORLDHOOK_ON_STARTUP, WORLDHOOK_ON_SHUTDOWN, WORLDHOOK_ON_AFTER_CONFIG_LOAD}),
+        WorldScript("ChatLoggerWorld", {WORLDHOOK_ON_STARTUP, WORLDHOOK_ON_UPDATE,
+            WORLDHOOK_ON_SHUTDOWN, WORLDHOOK_ON_AFTER_CONFIG_LOAD}),
         _service(std::move(service)) { }
 
     ~ChatLoggerWorld() override { _service->Stop(); }
     void OnStartup() override { _service->Start(); }
+    void OnUpdate(uint32 diff) override { _service->Update(diff); }
     void OnShutdown() override { _service->Stop(); }
     void OnAfterConfigLoad(bool reload) override
     {

@@ -29,6 +29,19 @@ export function batch(...events: Record<string, unknown>[]) {
   return { schema_version: 1 as const, source_id: "realm-1", events };
 }
 
+export function presence(sequence = 1, status = "online", loginId = "11111111-1111-4111-8111-111111111111",
+  startedAt = "2026-10-06T12:00:00.000Z", capturedAt = startedAt, guid = alice) {
+  return {
+    ...outgoing(`presence:${loginId}:${sequence}`, guid), event_kind: "presence", observation: "character_presence",
+    opcode: null, opcode_id: null, captured_at: capturedAt, sequence: String(sequence), presence: status,
+    session: { ...outgoing().session, character_guid: guid, login_id: loginId, started_at: startedAt },
+  };
+}
+
+export function sessionMessage(id: string, login = presence()) {
+  return { ...outgoing(id), session: login.session, captured_at: login.captured_at };
+}
+
 export function fixture(options: ReceiverOptions = {}) {
   const lines: string[] = [];
   const diagnostics: string[] = [];

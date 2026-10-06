@@ -64,9 +64,19 @@ In separate containers or on different machines, replace loopback with the recei
 
 The panel has a translucent background, channel colors, outlined text, and bottom-aligned
 messages. It restores up to 100 recent events and receives live updates over Server-Sent Events (SSE).
+Only messages from the character's current login are shown, including its MOTD and channel notices.
+Logging out clears the panel and shows **Offline**; logging back in starts a fresh chat. Map transfers
+show **Unavailable** without resetting that login's chat. Presence refreshes every five seconds, and
+after 15 seconds without fresh presence the panel marks its last known chat **Stale**.
 Messages do not fade, and there are no input fields, clickable chat links, or editing controls.
 The panel keeps its current messages during an outage, shows a small reconnecting status, and resumes
-automatically. OBS refreshes restore history.
+automatically. OBS refreshes restore only the current login's history.
+
+Upgrade both the module and receiver to enable presence tracking, then restart worldserver and the receiver.
+The receiver migrates existing SQLite databases automatically. Older batches remain readable through the
+history API, but have no login boundary and are excluded from the widget. The widget waits for an observed
+login rather than showing archived messages. Keep the worldserver and receiver clocks synchronized;
+presence freshness is measured from the capture timestamp.
 
 Both `source` and exactly one of `character` or `guid` are required. Character names match case-insensitively
 within a source. The widget resolves a name to a GUID and uses that identity until the page reloads.
@@ -91,6 +101,7 @@ curl --include http://127.0.0.1:3000/chats \
 ```
 
 Then open the Alice widget URL above. Reposting the same example does not duplicate its messages.
+Its fixed capture timestamps make this an example of stale, last known chat.
 `examples/batch.json` remains an incoming-only example: it appears in stdout but does not create a chat line.
 If authentication is enabled, supply `--header "Authorization: Bearer $CHAT_LOGGER_BEARER_TOKEN"` as well.
 
@@ -131,7 +142,8 @@ observations are still accepted for stdout. Invalid common metadata rejects the 
 are valid. Text newlines are JSON-escaped and do not split stdout records.
 
 A `204` acknowledges a complete stdout write/flush followed by an atomic SQLite transaction. SQLite keeps
-only outgoing display data and learned identities, not raw packets, account IDs, or incoming submissions.
+only outgoing display data, login boundaries, character presence, and learned identities, not raw packets,
+account IDs, or incoming submissions.
 Original batches, including retries, remain intact on stdout. History deduplicates by `(source_id, event_id)`
 while events are retained. If stdout succeeds but SQLite fails, a retry may add another stdout line; the
 history transaction never partially commits. A lost HTTP acknowledgement is also safe to retry.
@@ -165,6 +177,11 @@ All read APIs use `GET` and send `Cache-Control: no-store`. The history and disc
   names return `409`. Missing source/selection or supplying both name and GUID returns `400`.
 - `/api/chat?source=realm-1&guid=…` reads a recipient directly. Unknown GUIDs return empty history.
 - Add `after=<cursor>` to receive events after a previous response. Treat cursors as opaque.
+- Add `session=current` to scope chat to the latest observed login. This is the mode used by the widget.
+  Offline or unobserved characters return no messages. Responses also contain `state` with `login_id`,
+  `presence` (`online`, `offline`, `unavailable`, or `unknown`), `age_ms`, `stale`, and `updated_at`.
+  Login changes and logout invalidate the previous cursor so the display resets, even without new chat.
+  Without this parameter the API continues to expose retained history across logins.
 
 Chat responses contain `character`, `messages`, `cursor`, `reset`, and `hasMore`. Each message contains its
 numeric `id`, `capturedAt`, CSS `color`, plain-text `prefix`, and WoW-formatted `text`. Initial responses return
@@ -184,14 +201,16 @@ It uses the same source and character selection rules as history. The widget ope
 with its resolved GUID and last applied cursor after an outage, with backoff up to 30 seconds.
 
 - Each `chat` event contains the same JSON object as `/api/chat`; its SSE `id` is the response cursor.
-  The first event restores recent history. Subsequent events arrive after successful ingestion commits.
+  The first event restores recent history within the selected session scope. Subsequent events arrive
+  after successful ingestion commits, including presence changes when using `session=current`.
   Catch-up pages are streamed automatically; viewers do not need to request each page.
 - Resume with `after=<cursor>` or the standard `Last-Event-ID` request header (which takes precedence).
   Clients must apply `reset` and advance cursors even for empty pages, just as for JSON history.
 - An unresolved name produces a `status` event with `{ "status": 404, "error": "…" }` and waits on the
   same connection until a batch identifies it. An ambiguous name produces status `409` and closes the
   stream; select a GUID. Once resolved, the stream keeps that GUID even if the character is renamed.
-- Comment heartbeats are sent every 15 seconds without querying history. Slow viewers catch up from
+- Comment heartbeats are sent every 15 seconds. Current-session streams also check for stale presence
+  on that interval; the widget has its own freshness deadline. Slow viewers catch up from
   SQLite as their connections drain; per-viewer queues do not grow with incoming batches. Disconnects
   release subscriptions, and receiver shutdown closes active streams.
 

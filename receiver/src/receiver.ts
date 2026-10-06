@@ -234,7 +234,8 @@ export function createReceiver(options: ReceiverOptions = {}) {
         }
         guid = matches[0]!.guid;
       }
-      return Response.json(store.history(source, guid!, url.searchParams.get("after") ?? undefined), {
+      return Response.json(store.history(source, guid!, url.searchParams.get("after") ?? undefined,
+        url.searchParams.get("session") === "current"), {
         headers: { "Cache-Control": "no-store" },
       });
     } catch (error) {

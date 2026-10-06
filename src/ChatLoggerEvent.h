@@ -28,6 +28,8 @@ struct SessionInfo
     std::string CharacterGuid;
     std::string CharacterName;
     std::string Locale;
+    std::string LoginId;
+    std::string StartedAt;
 };
 
 struct CapturedPacket
@@ -38,6 +40,7 @@ struct CapturedPacket
     std::vector<std::uint8_t> Bytes;
     std::chrono::system_clock::time_point CapturedAt;
     std::uint64_t Sequence = 0;
+    std::string Presence;
 
     std::size_t MemorySize() const;
 };

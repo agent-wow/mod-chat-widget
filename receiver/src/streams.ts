@@ -31,8 +31,10 @@ export class ChatStreams {
 
   response(request: Request, source: string, guid: string | null, name: string | null): Response {
     const url = new URL(request.url);
+    const currentSession = url.searchParams.get("session") === "current";
     let cursor = request.headers.get("last-event-id") || url.searchParams.get("after") || undefined;
     let characterName: string | undefined;
+    let characterState: string | undefined;
     let waiting = false;
     let dirty = true;
     let heartbeat = false;
@@ -84,12 +86,16 @@ export class ChatStreams {
             }
           }
           if (guid) {
-            const page = this.store.history(source, guid, cursor);
+            const page = this.store.history(source, guid, cursor, currentSession);
+            const state = JSON.stringify(page.state && [page.state.login_id, page.state.presence,
+              page.state.updated_at, page.state.stale]);
             dirty = page.hasMore;
-            if (page.cursor !== cursor || page.character.name !== characterName || page.reset) {
+            if (page.cursor !== cursor || page.character.name !== characterName ||
+                state !== characterState || page.reset) {
               // Bun can pull again during enqueue, so advance state before handing over this page.
               cursor = page.cursor;
               characterName = page.character.name;
+              characterState = state;
               send("chat", page, page.cursor);
               return;
             }
@@ -115,7 +121,7 @@ export class ChatStreams {
     });
     this.subscribers.add(subscriber);
     request.signal.addEventListener("abort", close, { once: true });
-    timer = setInterval(() => { heartbeat = true; drain(); }, 15000);
+    timer = setInterval(() => { heartbeat = true; dirty ||= currentSession; drain(); }, 15000);
     if (request.signal.aborted) {
       close();
     }
