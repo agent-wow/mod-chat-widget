@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import { Database } from "bun:sqlite";
-import { isObject } from "./batch.ts";
+import { hasLogin, isObject } from "./batch.ts";
 import type { Batch } from "./batch.ts";
 import { actor, format, project, text } from "./projection.ts";
 import type { ChatContent, DisplayMessage } from "./projection.ts";
@@ -30,6 +30,22 @@ interface Metadata {
   pruned: number;
 }
 
+interface PresenceRow {
+  login_id: string;
+  started_at: string;
+  captured_at: string;
+  sequence: string;
+  presence: "online" | "offline" | "unavailable";
+}
+
+export interface CharacterState {
+  login_id: string | null;
+  presence: PresenceRow["presence"] | "unknown";
+  age_ms: number;
+  stale: boolean;
+  updated_at: string | null;
+}
+
 export class ChatStore {
   private db: Database;
   private now: () => number;
@@ -46,7 +62,7 @@ export class ChatStore {
       this.db.run("PRAGMA journal_mode = WAL");
       this.db.run("PRAGMA busy_timeout = 1000");
       const version = this.db.query<{ user_version: number }, []>("PRAGMA user_version").get()!.user_version;
-      if (version !== 0 && version !== 1) {
+      if (![0, 1, 2].includes(version)) {
         throw new Error("Unsupported chat database version");
       }
       this.db.transaction(() => {
@@ -65,12 +81,22 @@ export class ChatStore {
           CREATE TABLE IF NOT EXISTS events (
             sequence INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, event_id TEXT NOT NULL,
             recipient TEXT NOT NULL, captured_at TEXT NOT NULL, received_at INTEGER NOT NULL, content TEXT NOT NULL,
+            login_id TEXT,
             UNIQUE (source, event_id)
           );
           CREATE INDEX IF NOT EXISTS recipient_history ON events(source, recipient, sequence);
           CREATE INDEX IF NOT EXISTS event_age ON events(received_at);
-          PRAGMA user_version = 1;
+          CREATE TABLE IF NOT EXISTS presence (
+            source TEXT NOT NULL, guid TEXT NOT NULL, login_id TEXT NOT NULL, started_at TEXT NOT NULL,
+            captured_at TEXT NOT NULL, sequence TEXT NOT NULL, presence TEXT NOT NULL, received_at INTEGER NOT NULL,
+            PRIMARY KEY (source, guid)
+          );
+          PRAGMA user_version = 2;
         `);
+        if (version === 1) {
+          this.db.run("ALTER TABLE events ADD COLUMN login_id TEXT");
+        }
+        this.db.run("CREATE INDEX IF NOT EXISTS session_history ON events(source, recipient, login_id, sequence)");
         this.db.query("INSERT OR IGNORE INTO metadata (id, epoch) VALUES (1, ?)").run(crypto.randomUUID());
       })();
       this.prune(true);
@@ -96,8 +122,8 @@ export class ChatStore {
           is_character = MAX(is_character, excluded.is_character)
       `);
       const insert = this.db.query(`
-        INSERT OR IGNORE INTO events (source, event_id, recipient, captured_at, received_at, content)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO events (source, event_id, recipient, captured_at, received_at, content, login_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       for (const event of batch.events) {
         const session = isObject(event.session) ? event.session : {};
@@ -113,9 +139,23 @@ export class ChatStore {
         }
         const content = project(event);
         const recipient = text(session.character_guid);
+        if (recipient && event.event_kind === "presence" && hasLogin(session)) {
+          const prior = this.presence(batch.source_id, recipient);
+          // A retry cannot refresh liveness, resurrect a logout, or replace a newer login.
+          if (!prior || session.started_at > prior.started_at ||
+              (session.login_id === prior.login_id && prior.presence !== "offline" &&
+                BigInt(String(event.sequence)) > BigInt(prior.sequence))) {
+            this.db.query(`
+              INSERT OR REPLACE INTO presence
+                (source, guid, login_id, started_at, captured_at, sequence, presence, received_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(batch.source_id, recipient, session.login_id, session.started_at,
+              String(event.captured_at), String(event.sequence), String(event.presence), now);
+          }
+        }
         if (recipient && content) {
           insert.run(batch.source_id, String(event.event_id), recipient, String(event.captured_at), now,
-            JSON.stringify(content));
+            JSON.stringify(content), hasLogin(session) ? session.login_id : null);
         }
       }
       this.db.run("UPDATE metadata SET high_water = MAX(high_water, COALESCE((SELECT MAX(sequence) FROM events), 0))");
@@ -142,6 +182,9 @@ export class ChatStore {
       this.db.query(`DELETE FROM identities WHERE rowid IN (
         SELECT rowid FROM identities ORDER BY seen_at DESC, rowid DESC LIMIT -1 OFFSET ?
       )`).run(this.maxEvents);
+      this.db.query(`DELETE FROM presence WHERE received_at < ? OR NOT EXISTS (
+        SELECT 1 FROM identities WHERE identities.source = presence.source AND identities.guid = presence.guid
+      )`).run(cutoff);
     })();
     this.lastPrune = now;
   }
@@ -158,28 +201,47 @@ export class ChatStore {
     ).all(source);
   }
 
-  history(source: string, guid: string, cursor?: string): {
+  private presence(source: string, guid: string): PresenceRow | null {
+    return this.db.query<PresenceRow, [string, string]>(
+      "SELECT login_id, started_at, captured_at, sequence, presence FROM presence WHERE source = ? AND guid = ?",
+    ).get(source, guid);
+  }
+
+  history(source: string, guid: string, cursor?: string, currentSession = false): {
     character: Character; messages: DisplayMessage[]; cursor: string; reset: boolean; hasMore: boolean;
+    state?: CharacterState;
   } {
     this.prune();
     const meta = this.db.query<Metadata, []>("SELECT epoch, high_water, pruned FROM metadata").get()!;
-    const match = cursor?.match(/^([\da-f-]{36}):(\d+):(\d+)$/u);
+    const presence = currentSession ? this.presence(source, guid) : null;
+    const age = presence ? Math.max(0, this.now() - Date.parse(presence.captured_at)) : 0;
+    const state: CharacterState | undefined = currentSession ? {
+      login_id: presence?.login_id ?? null, presence: presence?.presence ?? "unknown", age_ms: age,
+      stale: presence !== null && presence.presence !== "offline" && age >= 15000,
+      updated_at: presence?.captured_at ?? null,
+    } : undefined;
+    const scope = currentSession ? `:${presence?.login_id ?? "waiting"}:` +
+      (presence?.presence === "offline" ? "offline" : "active") : "";
+    const match = cursor?.match(/^([\da-f-]{36}):(\d+):(\d+)(:[\da-f-]+:(?:offline|active)|:waiting:active)?$/u);
     const after = match ? Number(match[2]) : -1;
     const reset = cursor !== undefined && (!match || match[1] !== meta.epoch ||
       !Number.isSafeInteger(after) || after < meta.pruned || after > meta.high_water ||
-      Number(match[3]) !== meta.pruned);
+      Number(match[3]) !== meta.pruned || (match[4] ?? "") !== scope);
     const snapshot = cursor === undefined || reset;
     let rows: EventRow[];
+    const sessionFilter = currentSession ? " AND login_id = ?" : "";
+    const parameters = [source, guid, ...(currentSession ?
+      [presence?.presence === "offline" ? null : presence?.login_id ?? null] : [])];
     if (snapshot) {
-      rows = this.db.query<EventRow, [string, string]>(
+      rows = this.db.query<EventRow, (string | number | null)[]>(
         `SELECT sequence, captured_at, content FROM events
-         WHERE source = ? AND recipient = ? ORDER BY sequence DESC LIMIT 100`,
-      ).all(source, guid).reverse();
+         WHERE source = ? AND recipient = ?${sessionFilter} ORDER BY sequence DESC LIMIT 100`,
+      ).all(...parameters).reverse();
     } else {
-      rows = this.db.query<EventRow, [string, string, number]>(
+      rows = this.db.query<EventRow, (string | number | null)[]>(
         `SELECT sequence, captured_at, content FROM events
-         WHERE source = ? AND recipient = ? AND sequence > ? ORDER BY sequence LIMIT 101`,
-      ).all(source, guid, after);
+         WHERE source = ? AND recipient = ?${sessionFilter} AND sequence > ? ORDER BY sequence LIMIT 101`,
+      ).all(...parameters, after);
     }
     const hasMore = rows.length > 100;
     rows = rows.slice(0, 100);
@@ -194,7 +256,8 @@ export class ChatStore {
           resolveName.get(source, content.sender.guid)?.name : null) ?? "Unknown player";
         return { id: row.sequence, capturedAt: row.captured_at, ...format(content, name) };
       }),
-      cursor: `${meta.epoch}:${hasMore ? rows.at(-1)!.sequence : meta.high_water}:${meta.pruned}`, reset, hasMore,
+      cursor: `${meta.epoch}:${hasMore ? rows.at(-1)!.sequence : meta.high_water}:${meta.pruned}${scope}`,
+      reset, hasMore, ...(state ? { state } : {}),
     };
   }
 

@@ -16,7 +16,7 @@ CapturedPacket Capture(WorldPacket const& packet, Direction direction = Directio
     CapturedPacket result;
     result.Flow = direction;
     result.Opcode = packet.GetOpcode();
-    result.Session = {account, ObjectGuid::Create<HighGuid::Player>(account).ToString(), "Alice", "enUS"};
+    result.Session = {account, ObjectGuid::Create<HighGuid::Player>(account).ToString(), "Alice", "enUS", {}, {}};
     result.Sequence = 1;
     if (!packet.empty())
         result.Bytes.assign(packet.contents(), packet.contents() + packet.size());
@@ -31,6 +31,31 @@ WorldPacket Submission(ChatMsg type, std::string const& text, std::string const&
         packet << target;
     packet << text;
     return packet;
+}
+
+TEST(ChatLoggerEvent, PresenceAndChatShareTheLoginBoundary)
+{
+    auto packet = Capture(Submission(CHAT_MSG_SAY, "hello"));
+    packet.Session.LoginId = "11111111-1111-4111-8111-111111111111";
+    packet.Session.StartedAt = "2026-10-06T12:00:00.000Z";
+    auto chat = Decode(packet, "process");
+    EXPECT_EQ(chat["session"]["login_id"], packet.Session.LoginId);
+    EXPECT_EQ(chat["session"]["started_at"], packet.Session.StartedAt);
+    packet.Flow = Direction::Outgoing;
+    packet.Bytes.clear();
+    for (auto state : {"online", "unavailable", "offline"})
+    {
+        packet.Presence = state;
+        auto event = Decode(packet, "process");
+        EXPECT_EQ(event["event_kind"], "presence");
+        EXPECT_EQ(event["observation"], "character_presence");
+        EXPECT_EQ(event["presence"], state);
+        EXPECT_EQ(event["sequence"], "1");
+        EXPECT_EQ(event["session"], chat["session"]);
+        EXPECT_TRUE(event["opcode"].is_null());
+        EXPECT_TRUE(event["opcode_id"].is_null());
+        EXPECT_EQ(event["decoding_status"], "ok");
+    }
 }
 
 TEST(ChatLoggerEvent, IncomingTypesPreserveOriginalTextAndSession)

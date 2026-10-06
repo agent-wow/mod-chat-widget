@@ -4,7 +4,7 @@ import { expect, test } from "bun:test";
 import { readConfig } from "../src/config.ts";
 import { MAX_BODY_BYTES } from "../src/receiver.ts";
 import { ChatStore } from "../src/store.ts";
-import { alice, bob, batch, fixture, outgoing, rawRequest, sampleBatch, until } from "./helpers.ts";
+import { alice, bob, batch, fixture, outgoing, presence, rawRequest, sampleBatch, until } from "./helpers.ts";
 
 test("submission and individual recipient copies remain unchanged in stdout", async () => {
   const { send, lines, diagnostics } = fixture();
@@ -102,6 +102,21 @@ test("invalid JSON, UTF-8 and metadata reject the whole batch without output", a
   }
   expect(lines).toEqual([]);
   expect((await send()).status).toBe(204);
+});
+
+test("presence observations require an identified login and valid lifecycle metadata", async () => {
+  const { send, lines } = fixture();
+  const login = presence();
+  for (const invalid of [
+    { presence: "maybe" }, { sequence: "0" }, { sequence: "invalid" }, { opcode: "SMSG_MESSAGECHAT" },
+    { observation: "send_attempt" }, { direction: "incoming" }, { decoding_status: "malformed" },
+    { session: { ...login.session, login_id: null } }, { session: { ...login.session, started_at: "invalid" } },
+    { session: { ...login.session, character_guid: null } },
+  ]) {
+    expect((await send(JSON.stringify(batch({ ...login, ...invalid })))).status).toBe(422);
+  }
+  expect(lines).toEqual([]);
+  expect((await send(JSON.stringify(batch(login)))).status).toBe(204);
 });
 
 test("routing, methods, content types and compression are validated", async () => {

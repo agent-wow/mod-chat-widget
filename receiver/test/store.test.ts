@@ -5,7 +5,8 @@ import { expect, test } from "bun:test";
 import { ChatStore } from "../src/store.ts";
 import { format, project } from "../src/projection.ts";
 import { tokenize } from "../src/web/format.js";
-import { alice, bob, batch, cleanup, outgoing, sampleBatch, temporaryDirectory } from "./helpers.ts";
+import { alice, bob, batch, cleanup, outgoing, presence, sampleBatch, sessionMessage,
+  temporaryDirectory } from "./helpers.ts";
 
 function store(options: ConstructorParameters<typeof ChatStore>[0] = {}) {
   const result = new ChatStore(options);
@@ -93,6 +94,96 @@ test("database restart retains history, deduplication, names, and valid cursors"
   expect(second.history("realm-1", alice, saved.cursor).reset).toBe(false);
   const replacement = store();
   expect(replacement.history("realm-1", alice, saved.cursor).reset).toBe(true);
+});
+
+test("current chat starts at login, survives refresh, clears on logout, and resets on the next login", () => {
+  const login = presence();
+  const db = store({ now: () => Date.parse(login.captured_at) });
+  db.ingest(batch(outgoing("legacy")));
+  const waiting = db.history("realm-1", alice, undefined, true);
+  expect(waiting.messages).toEqual([]);
+  expect(waiting.state?.presence).toBe("unknown");
+  const motd = { ...sessionMessage("motd"), event_kind: "notice", opcode: "SMSG_MOTD",
+    text: null, notice: { lines: ["Welcome"] } };
+  db.ingest(batch(login, motd, sessionMessage("chat")));
+  const online = db.history("realm-1", alice, waiting.cursor, true);
+  expect(online.reset).toBe(true);
+  expect(online.state?.presence).toBe("online");
+  expect(online.messages.map((m) => m.text)).toEqual(["Welcome", "hello"]);
+  expect(db.history("realm-1", alice, undefined, true).messages).toEqual(online.messages);
+  db.ingest(batch(presence(2, "offline")));
+  const offline = db.history("realm-1", alice, online.cursor, true);
+  expect(offline.reset).toBe(true);
+  expect(offline.state?.presence).toBe("offline");
+  expect(offline.messages).toEqual([]);
+  const next = presence(3, "online", "22222222-2222-4222-8222-222222222222", "2026-10-06T12:01:00.000Z");
+  db.ingest(batch(next, sessionMessage("new", next), sessionMessage("late-old")));
+  const relogged = db.history("realm-1", alice, online.cursor, true);
+  expect(relogged.reset).toBe(true);
+  expect(relogged.messages).toHaveLength(1);
+  expect(relogged.messages[0]!.id).toBe(db.history("realm-1", alice).messages.at(-2)!.id);
+  expect(db.history("realm-1", alice, offline.cursor, true).reset).toBe(true);
+  expect(db.history("realm-1", alice).messages).toHaveLength(5);
+});
+
+test("presence ignores retries and older logins, goes stale during silence, and survives map changes", () => {
+  const login = presence();
+  let now = Date.parse(login.captured_at);
+  const db = store({ now: () => now });
+  db.ingest(batch(login, sessionMessage("chat")));
+  const online = db.history("realm-1", alice, undefined, true);
+  now += 15000;
+  db.ingest(batch(login));
+  expect(db.history("realm-1", alice, undefined, true).state?.stale).toBe(true);
+  db.ingest(batch(presence(2, "unavailable", login.session.login_id, login.session.started_at,
+    new Date(now).toISOString())));
+  const transfer = db.history("realm-1", alice, online.cursor, true);
+  expect(transfer.state).toMatchObject({ presence: "unavailable", stale: false });
+  expect(transfer.reset).toBe(false);
+  expect(db.history("realm-1", alice, undefined, true).messages).toHaveLength(1);
+  db.ingest(batch(login, presence(3, "offline", login.session.login_id, login.session.started_at,
+    new Date(now).toISOString())));
+  db.ingest(batch(presence(4))); // A closed login must not be resurrected, even by a late heartbeat.
+  expect(db.history("realm-1", alice, undefined, true).state?.presence).toBe("offline");
+  const next = presence(5, "online", "22222222-2222-4222-8222-222222222222", new Date(now).toISOString());
+  db.ingest(batch(next, login, presence(6, "offline")));
+  expect(db.history("realm-1", alice, undefined, true).state?.login_id).toBe(next.session.login_id);
+  expect(db.history("realm-1", alice, undefined, true).state?.presence).toBe("online");
+});
+
+test("session snapshots and cursors survive receiver restart and remain isolated by source and recipient", async () => {
+  const path = `${await temporaryDirectory()}/session.sqlite`;
+  const login = presence();
+  const first = new ChatStore({ path });
+  first.ingest(batch(login, sessionMessage("alice")));
+  first.ingest(batch(presence(2, "offline", login.session.login_id, login.session.started_at,
+    login.captured_at, bob)));
+  first.ingest({ ...batch(presence(3, "offline")), source_id: "another-realm" });
+  const saved = first.history("realm-1", alice, undefined, true);
+  first.close();
+  const reopened = store({ path });
+  expect(reopened.history("realm-1", alice, undefined, true).messages).toEqual(saved.messages);
+  expect(reopened.history("realm-1", alice, saved.cursor, true).reset).toBe(false);
+  expect(saved.state?.presence).toBe("online");
+  expect(reopened.history("realm-1", bob, undefined, true).messages).toEqual([]);
+});
+
+test("version 1 databases migrate without assigning historical messages to the current login", async () => {
+  const path = `${await temporaryDirectory()}/legacy.sqlite`;
+  const legacy = new Database(path);
+  legacy.run(`CREATE TABLE events (
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, event_id TEXT NOT NULL,
+    recipient TEXT NOT NULL, captured_at TEXT NOT NULL, received_at INTEGER NOT NULL, content TEXT NOT NULL,
+    UNIQUE (source, event_id)
+  ); PRAGMA user_version = 1;`);
+  legacy.query(`INSERT INTO events (source, event_id, recipient, captured_at, received_at, content)
+    VALUES (?, ?, ?, ?, ?, ?)`).run("realm-1", "old", alice, presence().captured_at, Date.now(),
+    JSON.stringify(project(outgoing())));
+  legacy.close();
+  const migrated = store({ path });
+  migrated.ingest(batch(presence(), sessionMessage("new")));
+  expect(migrated.history("realm-1", alice).messages).toHaveLength(2);
+  expect(migrated.history("realm-1", alice, undefined, true).messages).toHaveLength(1);
 });
 
 test("a SQLite failure halfway through a batch rolls back both events and identities", async () => {

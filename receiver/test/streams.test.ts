@@ -3,7 +3,7 @@
 import { expect, test } from "bun:test";
 import { ChatStore } from "../src/store.ts";
 import { ChatStreams } from "../src/streams.ts";
-import { alice, bob, batch, cleanup, fixture, outgoing, until } from "./helpers.ts";
+import { alice, bob, batch, cleanup, fixture, outgoing, presence, sessionMessage, until } from "./helpers.ts";
 
 type Page = ReturnType<ChatStore["history"]>;
 
@@ -49,6 +49,38 @@ async function openStream(url: URL, headers: Record<string, string> = {}) {
 function streamURL(receiver: ReturnType<typeof fixture>["receiver"], selection = `guid=${encodeURIComponent(alice)}`) {
   return new URL(`/api/chat/stream?source=realm-1&${selection}`, receiver.server.url);
 }
+
+test("current-session streams publish login and logout without chat and resume only the new login", async () => {
+  const { receiver, send, get } = fixture();
+  await send(JSON.stringify(batch(outgoing("historical"))));
+  const selection = `guid=${encodeURIComponent(alice)}&session=current`;
+  const stream = await openStream(streamURL(receiver, selection));
+  expect((await stream.next())!.data.messages).toEqual([]);
+  const login = presence();
+  expect((await send(JSON.stringify(batch(login)))).status).toBe(204);
+  const online = (await stream.next())!.data;
+  expect(online.state.presence).toBe("online");
+  expect(online.messages).toEqual([]);
+  await send(JSON.stringify(batch(sessionMessage("current"))));
+  const chat = (await stream.next())!.data;
+  expect(chat.messages).toHaveLength(1);
+  expect(chat.reset).toBe(false);
+  await send(JSON.stringify(batch(presence(2, "offline"))));
+  const offline = (await stream.next())!.data;
+  expect(offline.reset).toBe(true);
+  expect(offline.state.presence).toBe("offline");
+  expect(offline.messages).toEqual([]);
+  stream.close();
+  const next = presence(3, "online", "22222222-2222-4222-8222-222222222222", "2026-10-06T12:01:00.000Z");
+  await send(JSON.stringify(batch(next, sessionMessage("next", next))));
+  const resumed = await openStream(streamURL(receiver, `${selection}&after=${chat.cursor}`));
+  const restored = (await resumed.next())!.data;
+  expect(restored.reset).toBe(true);
+  expect(restored.messages).toHaveLength(1);
+  expect(restored.state.login_id).toBe(next.session.login_id);
+  const response = await get(`/api/chat?source=realm-1&${selection}`);
+  expect((await response.json()).messages).toEqual(restored.messages);
+});
 
 test("SSE sends recent history, all catch-up pages, and committed live messages without duplicates", async () => {
   const { receiver, send } = fixture();

@@ -15,6 +15,8 @@ let failures = 0;
 let stream;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let retry;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let staleTimer;
 let stopped = false;
 let suspended = false;
 const displayed = new Set();
@@ -51,7 +53,7 @@ function connect() {
   if (stopped || suspended) {
     return;
   }
-  const query = new URLSearchParams({ source: source ?? "" });
+  const query = new URLSearchParams({ source: source ?? "", session: "current" });
   query.set(guid ? "guid" : "character", guid || character || "");
   if (cursor) {
     query.set("after", cursor);
@@ -60,7 +62,8 @@ function connect() {
   stream = connection;
   connection.addEventListener("chat", (event) => {
     const body = JSON.parse(event.data);
-    if (body.reset) {
+    const state = /** @type {import('../store.ts').CharacterState} */ (body.state);
+    if (body.reset || state.presence === "offline" || state.presence === "unknown") {
       messages.replaceChildren();
       displayed.clear();
     }
@@ -70,11 +73,22 @@ function connect() {
       append(message);
     }
     cursor = body.cursor;
-    status.textContent = displayed.size ? "" : "Waiting for chat…";
+    clearTimeout(staleTimer);
+    const stale = () => { status.textContent = "Stale · Showing last known chat"; };
+    status.textContent = state.presence === "offline" ? "Offline" :
+      state.presence === "unknown" ? "Waiting for this character to come online…" :
+      state.presence === "unavailable" ? "Unavailable · Character changing maps…" :
+      displayed.size ? "" : "Waiting for chat…";
+    if (state.stale) {
+      stale();
+    } else if (["online", "unavailable"].includes(state.presence)) {
+      staleTimer = setTimeout(stale, Math.max(0, 15000 - state.age_ms));
+    }
     failures = 0;
   });
   connection.addEventListener("status", (event) => {
     const body = JSON.parse(event.data);
+    clearTimeout(staleTimer);
     status.textContent = body.error;
     failures = 0;
     if (body.status !== 404) {
@@ -85,6 +99,7 @@ function connect() {
   connection.onerror = () => {
     // Recreate the connection with the resolved GUID and last applied cursor, even after HTTP errors.
     connection.close();
+    clearTimeout(staleTimer);
     if (!stopped && !suspended) {
       status.textContent = "Reconnecting…";
       retry = setTimeout(connect, Math.min(1000 * 2 ** Math.min(++failures, 5), 30000));
@@ -95,6 +110,7 @@ function connect() {
 window.addEventListener("pagehide", () => {
   suspended = true;
   clearTimeout(retry);
+  clearTimeout(staleTimer);
   stream?.close();
 });
 window.addEventListener("pageshow", (event) => {

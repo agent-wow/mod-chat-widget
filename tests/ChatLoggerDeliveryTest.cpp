@@ -27,7 +27,7 @@ CapturedPacket GuildEvent(Direction direction = Direction::Incoming, uint32 acco
     result.Flow = direction;
     result.Opcode = packet.GetOpcode();
     result.Bytes.assign(packet.contents(), packet.contents() + packet.size());
-    result.Session = {account, ObjectGuid::Create<HighGuid::Player>(account).ToString(), "Player", "enUS"};
+    result.Session = {account, ObjectGuid::Create<HighGuid::Player>(account).ToString(), "Player", "enUS", {}, {}};
     return result;
 }
 

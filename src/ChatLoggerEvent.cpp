@@ -139,7 +139,8 @@ Json Envelope(CapturedPacket const& packet, std::string const& processId)
         {"event_kind", "notice"},
         {"session", {{"account_id", packet.Session.AccountId},
             {"character_guid", Nullable(packet.Session.CharacterGuid)},
-            {"character_name", Nullable(packet.Session.CharacterName)}, {"locale", packet.Session.Locale}}},
+            {"character_name", Nullable(packet.Session.CharacterName)}, {"locale", packet.Session.Locale},
+            {"login_id", Nullable(packet.Session.LoginId)}, {"started_at", Nullable(packet.Session.StartedAt)}}},
         {"sender", incoming ? Json{{"guid", Nullable(packet.Session.CharacterGuid)},
             {"name", Nullable(packet.Session.CharacterName)}} : Json(nullptr)},
         {"target", nullptr}, {"channel", nullptr}, {"text", nullptr},
@@ -395,7 +396,8 @@ std::size_t CapturedPacket::MemorySize() const
 {
     // Include allocation/container overhead and retain this charge while a batch is in flight.
     return sizeof(CapturedPacket) + 128 + Bytes.capacity() + Session.CharacterGuid.capacity() +
-        Session.CharacterName.capacity() + Session.Locale.capacity();
+        Session.CharacterName.capacity() + Session.Locale.capacity() + Session.LoginId.capacity() +
+        Session.StartedAt.capacity() + Presence.capacity();
 }
 
 bool IsSelectedPacket(Direction direction, std::uint16_t opcode)
@@ -439,6 +441,16 @@ std::string FormatTimestamp(std::chrono::system_clock::time_point time)
 Json Decode(CapturedPacket const& packet, std::string const& processId)
 {
     Json event = Envelope(packet, processId);
+    if (!packet.Presence.empty())
+    {
+        event["event_kind"] = "presence";
+        event["observation"] = "character_presence";
+        event["opcode"] = nullptr;
+        event["opcode_id"] = nullptr;
+        event["presence"] = packet.Presence;
+        event["sequence"] = std::to_string(packet.Sequence);
+        return event;
+    }
     Reader reader(packet.Bytes);
     try
     {

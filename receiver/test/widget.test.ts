@@ -63,6 +63,7 @@ function loadWidget(search = "?source=realm-1&character=Alice") {
 function page(ids: number[], cursor = "cursor:1", reset = false) {
   return {
     character: { guid: "alice-guid", name: "Alice" }, cursor, reset, hasMore: false,
+    state: { login_id: "login-1", presence: "online", age_ms: 0, stale: false, updated_at: "now" },
     messages: ids.map((id) => ({ id, text: `Message ${id}`, color: "#ffffff", prefix: "[Guild] Bob: " })),
   };
 }
@@ -72,10 +73,11 @@ test("widget renders SSE and reconnects by GUID and cursor while retaining its m
   expect(widget.connections).toHaveLength(1);
   const first = widget.connections[0]!;
   expect(first.url.pathname).toBe("/api/chat/stream");
+  expect(first.url.searchParams.get("session")).toBe("current");
   first.emit("chat", page([1]));
   expect(widget.document.title).toBe("Alice — Chat");
   expect(widget.messages.children).toHaveLength(1);
-  expect(widget.timers.size).toBe(0);
+  expect(widget.timers.size).toBe(1); // Freshness deadline, not a history poll.
   first.fail();
   expect(first.closed).toBe(true);
   expect(widget.status.textContent).toBe("Reconnecting…");
@@ -91,6 +93,32 @@ test("widget renders SSE and reconnects by GUID and cursor while retaining its m
   second.emit("chat", page([2], "reset:2", true));
   expect(widget.messages.children).toHaveLength(1);
   expect(widget.messages.children[0]!.dataset.id).toBe("2");
+});
+
+test("widget follows character status, expires silent presence, and replaces chat on a new login", () => {
+  const widget = loadWidget();
+  const connection = widget.connections[0]!;
+  connection.emit("chat", page([1]));
+  const transfer = page([]);
+  transfer.state.presence = "unavailable";
+  connection.emit("chat", transfer);
+  expect(widget.messages.children).toHaveLength(1);
+  expect(widget.status.textContent).toContain("Character changing maps");
+  widget.retry(); // Expire presence without receiving another SSE event.
+  expect(widget.status.textContent).toBe("Stale · Showing last known chat");
+  const offline = page([], "offline", true);
+  offline.state.presence = "offline";
+  connection.emit("chat", offline);
+  expect(widget.messages.children).toEqual([]);
+  expect(widget.status.textContent).toBe("Offline");
+  expect(widget.timers.size).toBe(0);
+  connection.emit("chat", page([2], "login-2", true));
+  expect(widget.messages.children.map((line) => line.dataset.id)).toEqual(["2"]);
+  const waiting = page([], "waiting", true);
+  waiting.state.presence = "unknown";
+  connection.emit("chat", waiting);
+  expect(widget.status.textContent).toContain("come online");
+  expect(widget.messages.children).toEqual([]);
 });
 
 test("widget caps displayed messages and resumes after empty cursor updates", () => {

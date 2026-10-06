@@ -32,6 +32,7 @@ whitespace-only endpoint leaves it inactive: no worker, queue, or network activi
 continues normally. Set `ChatLogger.Enable = 0` to explicitly disable it even with an endpoint configured.
 `CaptureIncoming` and `CaptureOutgoing` can independently disable either direction. Omitting `SourceId`
 uses `realm-<RealmID>`; use a distinct source ID for each installation.
+Character presence is sent independently of those packet switches while the module is enabled.
 
 HTTPS verifies the peer certificate and hostname. `CAFile` optionally supplies a PEM trust bundle in
 addition to OpenSSL's default trust paths (particularly useful on Windows). HTTP is also supported.
@@ -45,6 +46,13 @@ disable only the logger; diagnostic logs never include tokens, endpoint URLs, re
 | --- | --- | --- |
 | Incoming | `client_submission` | The authenticated submitting player |
 | Outgoing | `send_attempt` | The session to which the server is attempting to send |
+| Outgoing | `character_presence` | The character logging in, changing maps, or logging out |
+
+The module assigns a new `session.login_id` and UTC `session.started_at` when loading a character,
+before MOTD and channel notices. The login hook preserves this boundary. Presence observations report
+`online`, `unavailable` during map transfers, and `offline` at logout or orderly shutdown. Every five seconds,
+the world update hook refreshes presence for loaded characters, even when chat is quiet. The widget uses
+this login ID to show only the current login's messages and clears its display on logout.
 
 Incoming packets are copied in `CanPacketReceive`, before the chat handler validates or rewrites text.
 The observer always returns true. This includes `.commands`, whispers to unavailable players, muted-player
@@ -129,7 +137,10 @@ The module sends `POST` with `Content-Type: application/json`, optionally
 - `target` is an explicit packet target, such as a whisper destination, and is distinct from the session
   recipient. Incoming whisper names survive even when the player cannot be resolved. Outgoing packets
   with a zero target GUID produce an actor object with null members. Guild/group IDs are not in these packets.
-- `event_kind` is `chat`, `text_emote`, or `notice`. `chat_type` is the enum name without `CHAT_MSG_`;
+- `event_kind` is `chat`, `text_emote`, `notice`, or `presence`. Presence events use observation
+  `character_presence`, null `opcode` and `opcode_id`, a `presence` value, and the queue `sequence` as a
+  decimal string. They share the queue, delivery limits, and retry behavior of packet observations.
+  For chat, `chat_type` is the enum name without `CHAT_MSG_`;
   `chat_type_id` and `language` are numeric wire values. Notice IDs/emote IDs are identifiers rather than
   reconstructed client-localized prose. MOTD uses `notice.lines`; channel listings use `notice.members`.
 - Applicable decoded details also include `chat_flags`, `chat_tag`, and `achievement_id`. Notices expose
