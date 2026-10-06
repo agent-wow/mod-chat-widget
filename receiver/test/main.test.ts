@@ -35,7 +35,7 @@ test("a copied receiver starts with Bun alone, persists chat, serves assets, and
   }
   const first = await launch();
   const value = batch(outgoing());
-  expect((await fetch(`http://127.0.0.1:${port}/chat`, {
+  expect((await fetch(`http://127.0.0.1:${port}/chats`, {
     method: "POST", headers: { "Content-Type": "application/json", Connection: "close" }, body: JSON.stringify(value),
   })).status).toBe(204);
   expect((await fetch(`http://127.0.0.1:${port}/widget.js`)).status).toBe(200);

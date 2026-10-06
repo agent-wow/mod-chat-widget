@@ -41,7 +41,7 @@ export function fixture(options: ReceiverOptions = {}) {
     await receiver.stop();
   });
   const send = (body: BodyInit = JSON.stringify(sampleBatch()), init: RequestInit = {}) =>
-    fetch(new URL("/chat", receiver.server.url), {
+    fetch(new URL("/chats", receiver.server.url), {
       method: "POST", body, ...init,
       headers: { "Content-Type": "application/json", Connection: "close", ...init.headers },
     });

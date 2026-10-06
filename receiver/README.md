@@ -13,7 +13,7 @@ Install Bun 1.4.2 or newer. From this directory:
 bun run --silent start
 ```
 
-The default listener is `http://127.0.0.1:3000`. Ingestion uses `POST /chat`; the panel uses `GET /widget`.
+The default listener is `http://127.0.0.1:3000`. Ingestion uses `POST /chats`; the panel uses `GET /widget`.
 Startup, shutdown, and error messages go to stderr. Batches go to stdout, one compact JSON object per line.
 The `--silent` flag keeps stdout free of script banners. To save the original batches as well as widget history:
 
@@ -36,7 +36,7 @@ sidecars alongside the database. Stop the receiver before copying its database f
 
 Widget and history routes intentionally require **no viewing token**. Anyone who can reach the receiver
 can query captured character chat, including whispers and officer chat. The ingestion token protects only
-`POST /chat`; keep this deployment on your private network. Remote HTTPS can be supplied by a reverse proxy.
+`POST /chats`; keep this deployment on your private network. Remote HTTPS can be supplied by a reverse proxy.
 
 ## Connect the module
 
@@ -46,7 +46,7 @@ For a receiver on the same machine, set these values in `mod_chat_widget.conf` a
 ChatLogger.Enable = 1
 ChatLogger.CaptureOutgoing = 1
 ChatLogger.CaptureIncoming = 1
-ChatLogger.Endpoint = "http://127.0.0.1:3000/chat"
+ChatLogger.Endpoint = "http://127.0.0.1:3000/chats"
 ChatLogger.SourceId = "realm-1"
 ChatLogger.BearerToken = ""
 ```
@@ -84,7 +84,7 @@ appear in discovery. Identities learned solely from explicitly named packet acto
 To try the widget without a realm, submit the synthetic outgoing example:
 
 ```sh
-curl --include http://127.0.0.1:3000/chat \
+curl --include http://127.0.0.1:3000/chats \
   --header 'Content-Type: application/json' \
   --data-binary @examples/widget-batch.json
 ```
@@ -123,7 +123,7 @@ An outgoing observation is a server send attempt, not proof that the client rece
 
 ## HTTP contract
 
-`POST /chat` accepts uncompressed UTF-8 JSON with `Content-Type: application/json`. It validates schema
+`POST /chats` accepts uncompressed UTF-8 JSON with `Content-Type: application/json`. It validates schema
 version 1, a nonempty source ID of at most 256 UTF-8 bytes, an events array, and common event metadata.
 Optional packet fields and unknown extensions remain unchanged in stdout. Unsupported or malformed packet
 observations are still accepted for stdout. Invalid common metadata rejects the entire batch; empty batches
