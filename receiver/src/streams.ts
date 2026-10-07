@@ -29,10 +29,13 @@ export class ChatStreams {
     }
   }
 
-  response(request: Request, source: string, guid: string | null, name: string | null): Response {
+  response(request: Request, source: string, guid: string | null, name: string | null, follow = false): Response {
     const url = new URL(request.url);
-    const currentSession = url.searchParams.get("session") === "current";
-    let cursor = request.headers.get("last-event-id") || url.searchParams.get("after") || undefined;
+    const currentSession = follow || url.searchParams.get("session") === "current";
+    let cursor = follow ? undefined :
+      request.headers.get("last-event-id") || url.searchParams.get("after") || undefined;
+    let effectiveGuid: string | null | undefined;
+    let lastHeartbeat = performance.now();
     let characterName: string | undefined;
     let characterState: string | undefined;
     let waiting = false;
@@ -86,18 +89,31 @@ export class ChatStreams {
             }
           }
           if (guid) {
-            const page = this.store.history(source, guid, cursor, currentSession);
-            const state = JSON.stringify(page.state && [page.state.login_id, page.state.presence,
-              page.state.updated_at, page.state.stale]);
-            dirty = page.hasMore;
-            if (page.cursor !== cursor || page.character.name !== characterName ||
-                state !== characterState || page.reset) {
-              // Bun can pull again during enqueue, so advance state before handing over this page.
-              cursor = page.cursor;
-              characterName = page.character.name;
-              characterState = state;
-              send("chat", page, page.cursor);
-              return;
+            const selected = follow ? this.store.watchedGuid(source, guid) : guid;
+            if (selected === null) {
+              if (effectiveGuid !== null) {
+                effectiveGuid = null; cursor = undefined; characterName = undefined; characterState = undefined;
+                send("chat", null);
+                return;
+              }
+            } else {
+              const switched = follow && effectiveGuid !== selected;
+              if (switched) cursor = undefined;
+              const page = this.store.history(source, selected, cursor, currentSession);
+              if (switched) page.reset = true;
+              effectiveGuid = selected;
+              const state = JSON.stringify(page.state && [page.state.login_id, page.state.presence,
+                page.state.updated_at, page.state.stale]);
+              dirty = page.hasMore;
+              if (page.cursor !== cursor || page.character.name !== characterName ||
+                  state !== characterState || page.reset) {
+                // Bun can pull again during enqueue, so advance state before handing over this page.
+                cursor = page.cursor;
+                characterName = page.character.name;
+                characterState = state;
+                send("chat", page, page.cursor);
+                return;
+              }
             }
           }
         }
@@ -121,7 +137,10 @@ export class ChatStreams {
     });
     this.subscribers.add(subscriber);
     request.signal.addEventListener("abort", close, { once: true });
-    timer = setInterval(() => { heartbeat = true; dirty ||= currentSession; drain(); }, 15000);
+    timer = setInterval(() => {
+      if (performance.now() - lastHeartbeat >= 15000) { heartbeat = true; lastHeartbeat = performance.now(); }
+      dirty ||= currentSession; drain();
+    }, follow ? 250 : 15000);
     if (request.signal.aborted) {
       close();
     }

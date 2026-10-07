@@ -33,6 +33,25 @@ WorldPacket Submission(ChatMsg type, std::string const& text, std::string const&
     return packet;
 }
 
+TEST(ChatLoggerEvent, PresenceCopiesWatchTargetAndLogoutClearsIt)
+{
+    CapturedPacket packet;
+    packet.Flow = Direction::Outgoing;
+    packet.Presence = "online";
+    auto initialSize = packet.MemorySize();
+    packet.WatchGuid = ObjectGuid::Create<HighGuid::Player>(20).ToString();
+    packet.WatchName = "Watched";
+    auto event = Decode(packet, "process");
+    EXPECT_EQ(event["watch_target"]["guid"], packet.WatchGuid);
+    EXPECT_EQ(event["watch_target"]["name"], "Watched");
+    EXPECT_GE(packet.MemorySize(), initialSize + packet.WatchGuid.capacity() - std::string{}.capacity());
+    packet.Presence = "offline";
+    EXPECT_TRUE(Decode(packet, "process")["watch_target"].is_null());
+    packet.Presence = "unavailable";
+    packet.WatchGuid.clear();
+    EXPECT_TRUE(Decode(packet, "process")["watch_target"].is_null());
+}
+
 TEST(ChatLoggerEvent, PresenceAndChatShareTheLoginBoundary)
 {
     auto packet = Capture(Submission(CHAT_MSG_SAY, "hello"));

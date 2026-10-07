@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+import { resolveObserver, validFollow, SelectionError } from "./follow.js";
 
 import { tokenize } from "./format.js";
 
 const messages = /** @type {HTMLElement} */ (document.getElementById("messages"));
 const status = /** @type {HTMLElement} */ (document.getElementById("status"));
 const parameters = new URLSearchParams(location.search);
+const follow = parameters.get("follow") === "watch";
 const source = parameters.get("source");
 let guid = parameters.get("guid");
 const character = parameters.get("character");
@@ -50,24 +52,41 @@ function append(message) {
 }
 
 function connect() {
+  if (follow && !guid && !stopped && !suspended) {
+    void resolveObserver(source, guid, character, follow).then((resolved) => {
+      guid = resolved; connect();
+    }).catch((error) => {
+      status.textContent = error instanceof Error ? error.message : "Unable to resolve observer";
+      if (error instanceof SelectionError && [400, 409].includes(error.status)) { stopped = true; return; }
+      if (!stopped && !suspended) retry = setTimeout(connect, 1000);
+    });
+    return;
+  }
   if (stopped || suspended) {
     return;
   }
   const query = new URLSearchParams({ source: source ?? "", session: "current" });
   query.set(guid ? "guid" : "character", guid || character || "");
-  if (cursor) {
+  if (follow) query.set("follow", "watch");
+  if (cursor && !follow) {
     query.set("after", cursor);
   }
   const connection = new EventSource(`/api/chat/stream?${query}`);
   stream = connection;
   connection.addEventListener("chat", (event) => {
+    if (stream !== connection || stopped || suspended) return;
     const body = JSON.parse(event.data);
+    if (!body) {
+      messages.replaceChildren(); displayed.clear(); cursor = undefined;
+      clearTimeout(staleTimer); status.textContent = "Waiting for observer or watched character…";
+      return;
+    }
     const state = /** @type {import('../store.ts').CharacterState} */ (body.state);
     if (body.reset || state.presence === "offline" || state.presence === "unknown") {
       messages.replaceChildren();
       displayed.clear();
     }
-    guid = body.character.guid;
+    if (!follow) guid = body.character.guid;
     document.title = `${body.character.name} — Chat`;
     for (const message of body.messages) {
       append(message);
@@ -87,6 +106,7 @@ function connect() {
     failures = 0;
   });
   connection.addEventListener("status", (event) => {
+    if (stream !== connection || stopped || suspended) return;
     const body = JSON.parse(event.data);
     clearTimeout(staleTimer);
     status.textContent = body.error;
@@ -97,6 +117,7 @@ function connect() {
     }
   });
   connection.onerror = () => {
+    if (stream !== connection || stopped || suspended) return;
     // Recreate the connection with the resolved GUID and last applied cursor, even after HTTP errors.
     connection.close();
     clearTimeout(staleTimer);
@@ -120,7 +141,8 @@ window.addEventListener("pageshow", (event) => {
   }
 });
 
-if (!source || new TextEncoder().encode(source).byteLength > 256 || Boolean(guid) === Boolean(character)) {
+if (!validFollow(parameters) || !source || new TextEncoder().encode(source).byteLength > 256 ||
+  Boolean(guid) === Boolean(character)) {
   stopped = true;
   status.textContent = "Select a source and one character: /widget?source=realm-1&character=Alice";
 } else {
