@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+import { validFollow } from "./watch.ts";
 import { isBatch } from "./batch.ts";
 import { ChatStore } from "./store.ts";
 import { ChatStreams } from "./streams.ts";
@@ -102,6 +103,7 @@ async function readBody(request: Request, timeoutMs: number): Promise<Uint8Array
 const assets = new Map<string, readonly [string, string]>([
   ["/widget", ["widget.html", "text/html; charset=utf-8"]],
   ["/widget.css", ["widget.css", "text/css; charset=utf-8"]],
+  ["/follow.js", ["follow.js", "text/javascript; charset=utf-8"]],
   ["/widget.js", ["widget.js", "text/javascript; charset=utf-8"]],
   ["/format.js", ["format.js", "text/javascript; charset=utf-8"]],
 ]);
@@ -216,13 +218,15 @@ export function createReceiver(options: ReceiverOptions = {}) {
           headers: { "Cache-Control": "no-store" },
         });
       }
+      if (!validFollow(url.searchParams)) return failure(400, "Invalid follow mode");
+      const follow = url.searchParams.get("follow") === "watch";
       let guid = url.searchParams.get("guid");
       const name = url.searchParams.get("character");
       if (Boolean(guid) === Boolean(name)) {
         return failure(400, "Select exactly one character name or GUID");
       }
       if (url.pathname === "/api/chat/stream") {
-        return streams.response(request, source, guid, name);
+        return streams.response(request, source, guid, name, follow);
       }
       if (name) {
         const matches = store.characters(source, name);
@@ -234,8 +238,10 @@ export function createReceiver(options: ReceiverOptions = {}) {
         }
         guid = matches[0]!.guid;
       }
-      return Response.json(store.history(source, guid!, url.searchParams.get("after") ?? undefined,
-        url.searchParams.get("session") === "current"), {
+      const selected = follow ? store.watchedGuid(source, guid!) : guid;
+      return Response.json(selected === null ? null : store.history(source, selected,
+        follow ? undefined : url.searchParams.get("after") ?? undefined,
+        follow || url.searchParams.get("session") === "current"), {
         headers: { "Cache-Control": "no-store" },
       });
     } catch (error) {

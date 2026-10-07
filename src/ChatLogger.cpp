@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "ChatLoggerRunner.h"
 #include "Config.h"
+#include "WidgetWatch.h"
 #include "CryptoRandom.h"
 #include "Log.h"
 #include "Player.h"
@@ -123,15 +124,22 @@ public:
 
     void CaptureFailed() { ++_counters.CaptureFailures; }
 
-    void Presence(SessionInfo const& session, char const* presence)
+    bool Presence(SessionInfo const& session, char const* presence, Json const& watchTarget = nullptr)
     {
         CapturedPacket captured;
         captured.Flow = Direction::Outgoing;
         captured.CapturedAt = std::chrono::system_clock::now();
         captured.Session = session;
         captured.Presence = presence;
-        if (_queue.Push(std::move(captured)))
-            _wake.notify_one();
+        if (!watchTarget.is_null())
+        {
+            captured.WatchGuid = watchTarget["guid"];
+            captured.WatchName = watchTarget["name"];
+        }
+        if (!_queue.Push(std::move(captured)))
+            return false;
+        _wake.notify_one();
+        return true;
     }
 
 private:
@@ -247,6 +255,7 @@ public:
                     }
                 }
                 _identities.clear();
+                _watchTargets.clear();
             }
             runtime->Stop();
         }
@@ -301,6 +310,7 @@ public:
                 return;
             auto info = std::move(itr->second);
             _identities.erase(itr);
+            _watchTargets.erase(player->GetSession()->GetAccountId());
             runtime->Presence(info, "offline");
         }
         catch (...)
@@ -315,9 +325,13 @@ public:
         if (!runtime)
             return;
         _elapsed += diff;
-        if (_elapsed < 5000)
+        _presenceElapsed += diff;
+        if (_elapsed < 250)
             return;
-        _elapsed %= 5000;
+        _elapsed %= 250;
+        bool heartbeat = _presenceElapsed >= 5000;
+        if (heartbeat)
+            _presenceElapsed %= 5000;
         try
         {
             // This world hook runs after the map workers join; player access is safe for this tick.
@@ -325,8 +339,14 @@ public:
             for (auto const& [account, session] : sWorldSessionMgr->GetAllSessions())
                 if (auto player = session->GetPlayer(); player && !session->PlayerLogout())
                     if (auto itr = _identities.find(account); itr != _identities.end())
-                        runtime->Presence(itr->second,
-                            player->IsInWorld() && !player->IsBeingTeleported() ? "online" : "unavailable");
+                    {
+                        auto target = WidgetWatch::Capture<Json>(player);
+                        auto prior = _watchTargets.find(account);
+                        if (heartbeat || prior == _watchTargets.end() || prior->second != target)
+                            if (runtime->Presence(itr->second,
+                                player->IsInWorld() && !player->IsBeingTeleported() ? "online" : "unavailable", target))
+                                _watchTargets[account] = std::move(target);
+                    }
         }
         catch (...)
         {
@@ -376,6 +396,8 @@ private:
     std::mutex _identityMutex;
     std::unordered_map<uint32, SessionInfo> _identities;
     uint32 _elapsed = 0;
+    uint32 _presenceElapsed = 0;
+    std::unordered_map<uint32, Json> _watchTargets;
 };
 
 class ChatLoggerServer final : public ServerScript

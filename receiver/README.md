@@ -5,6 +5,30 @@ character chat history in SQLite, and serves a read-only WoW-style chat panel fo
 The entire `receiver/` directory can be copied to another machine. Runtime dependencies are built into Bun;
 no AzerothCore installation, database server, frontend build, or package installation is needed to run it.
 
+## Watch-following API
+
+The widget and `GET /api/chat` / `GET /api/chat/stream` accept optional `follow=watch`.
+The existing `source` and exactly one of `character` or `guid` identify the **observer**.
+Omit `follow` for fixed selection; other values and repeated `follow` parameters return HTTP 400.
+Discovery remains a direct character lookup. Browser clients resolve the observer once through
+`/api/characters` and retain that GUID instead of replacing it with a returned target GUID.
+
+Schema version 1 adds optional `watch_target: { "guid": "…", "name": "Alice" } | null` to presence events.
+Omitted or null metadata means no assignment. GUIDs and names must be nonempty strings, limited to
+256 and 512 UTF-8 bytes respectively. Metadata follows the record's existing ordering and freshness
+rules; duplicate or older records cannot revive a cleared assignment. Publishers send null at logout.
+Follow selection stays within the source, follows one assignment, and returns to the observer on
+unwatch or observer logout. Target logout/transfer retains the assignment. Missing or stale observer
+state produces a null response/event, which clients must use to clear the previous display.
+
+Follow mode always uses current-login history. The initial stream event and each target change have
+`reset: true`; reconnecting ignores `after` and `Last-Event-ID` and restores the latest 100 messages.
+Following history requests likewise ignore `after`. A `chat` event may contain null while routing is
+unavailable. Assignment freshness is checked every 250 ms; comment heartbeats remain 15 seconds.
+SQLite schema version 3 adds nullable watch-target storage to presence; versions 1 and 2 migrate
+transactionally while preserving history and cursors. Receiver restart does not refresh assignment age.
+
+
 ## Run
 
 Install Bun 1.4.2 or newer. From this directory:

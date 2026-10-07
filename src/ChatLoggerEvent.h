@@ -41,6 +41,8 @@ struct CapturedPacket
     std::chrono::system_clock::time_point CapturedAt;
     std::uint64_t Sequence = 0;
     std::string Presence;
+    std::string WatchGuid;
+    std::string WatchName;
 
     std::size_t MemorySize() const;
 };

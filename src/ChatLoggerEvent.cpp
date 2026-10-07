@@ -397,7 +397,7 @@ std::size_t CapturedPacket::MemorySize() const
     // Include allocation/container overhead and retain this charge while a batch is in flight.
     return sizeof(CapturedPacket) + 128 + Bytes.capacity() + Session.CharacterGuid.capacity() +
         Session.CharacterName.capacity() + Session.Locale.capacity() + Session.LoginId.capacity() +
-        Session.StartedAt.capacity() + Presence.capacity();
+        Session.StartedAt.capacity() + Presence.capacity() + WatchGuid.capacity() + WatchName.capacity();
 }
 
 bool IsSelectedPacket(Direction direction, std::uint16_t opcode)
@@ -448,6 +448,8 @@ Json Decode(CapturedPacket const& packet, std::string const& processId)
         event["opcode"] = nullptr;
         event["opcode_id"] = nullptr;
         event["presence"] = packet.Presence;
+        event["watch_target"] = packet.WatchGuid.empty() || packet.Presence == "offline" ? Json(nullptr)
+            : Json{{"guid", packet.WatchGuid}, {"name", packet.WatchName}};
         event["sequence"] = std::to_string(packet.Sequence);
         return event;
     }

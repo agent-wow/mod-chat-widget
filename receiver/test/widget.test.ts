@@ -3,9 +3,11 @@
 import { runInNewContext } from "node:vm";
 import { expect, test } from "bun:test";
 import { tokenize } from "../src/web/format.js";
+import { resolveObserver, validFollow, SelectionError } from "../src/web/follow.js";
 
 const widget = (await Bun.file(new URL("../src/web/widget.js", import.meta.url)).text())
-  .replace('import { tokenize } from "./format.js";', "");
+  .replace('import { tokenize } from "./format.js";', "")
+  .replace('import { resolveObserver, validFollow, SelectionError } from "./follow.js";', "");
 
 class Element {
   children: Element[] = [];
@@ -47,6 +49,7 @@ function loadWidget(search = "?source=realm-1&character=Alice") {
   let sequence = 0;
   runInNewContext(widget, {
     document, window, location: { search }, URLSearchParams, TextEncoder, EventSource: Connection, tokenize,
+    resolveObserver, validFollow, SelectionError,
     fetch() { throw new Error("The widget must not poll"); },
     setTimeout(callback: () => void, delay: number) { timers.set(++sequence, { callback, delay }); return sequence; },
     clearTimeout(id: number) { timers.delete(id); },
@@ -171,5 +174,27 @@ test("invalid widget selections never open a stream", () => {
     const widget = loadWidget(search);
     expect(widget.connections).toEqual([]);
     expect(widget.status.textContent).toContain("Select a source");
+  }
+});
+
+test("watch following keeps observer selector, replaces messages, and reconnects without a target cursor", () => {
+  const widget = loadWidget("?source=realm-1&guid=observer-guid&follow=watch");
+  const first = widget.connections[0]!;
+  expect(first.url.searchParams.get("follow")).toBe("watch");
+  first.emit("chat", page([1], "alice:1", true));
+  first.emit("chat", { ...page([2], "bob:1", true), character: { guid: "bob-guid", name: "Bob" } });
+  expect(widget.messages.children).toHaveLength(1);
+  expect(widget.messages.children[0]!.dataset.id).toBe("2");
+  first.emit("chat", null); expect(widget.messages.children).toHaveLength(0);
+  first.fail(); widget.retry();
+  const second = widget.connections[1]!;
+  expect(second.url.searchParams.get("guid")).toBe("observer-guid");
+  expect(second.url.searchParams.has("after")).toBe(false);
+  first.emit("chat", page([3])); expect(widget.messages.children).toHaveLength(0);
+});
+
+test("invalid and repeated follow modes never open a connection", () => {
+  for (const follow of ["follow=bad", "follow=", "follow=watch&follow=watch"]) {
+    expect(loadWidget(`?source=realm-1&guid=observer&${follow}`).connections).toHaveLength(0);
   }
 });

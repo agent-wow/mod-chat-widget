@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+import { isWatchTarget } from "./watch.ts";
 
 export interface Batch {
   schema_version: 1;
@@ -53,7 +54,8 @@ export function isBatch(value: unknown): value is Batch {
         return false;
       }
       if (event.event_kind === "presence") {
-        return event.direction === "outgoing" && event.observation === "character_presence" &&
+        return isWatchTarget(event.watch_target) && event.direction === "outgoing" &&
+          event.observation === "character_presence" &&
           event.opcode === null && event.opcode_id === null && event.decoding_status === "ok" &&
           isText(event.session.character_guid) && isText(event.session.character_name) && hasLogin(event.session) &&
           event.session.started_at <= event.captured_at &&

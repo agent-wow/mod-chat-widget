@@ -36,6 +36,7 @@ interface PresenceRow {
   captured_at: string;
   sequence: string;
   presence: "online" | "offline" | "unavailable";
+  watch_target: string | null;
 }
 
 export interface CharacterState {
@@ -62,7 +63,7 @@ export class ChatStore {
       this.db.run("PRAGMA journal_mode = WAL");
       this.db.run("PRAGMA busy_timeout = 1000");
       const version = this.db.query<{ user_version: number }, []>("PRAGMA user_version").get()!.user_version;
-      if (![0, 1, 2].includes(version)) {
+      if (![0, 1, 2, 3].includes(version)) {
         throw new Error("Unsupported chat database version");
       }
       this.db.transaction(() => {
@@ -91,8 +92,9 @@ export class ChatStore {
             captured_at TEXT NOT NULL, sequence TEXT NOT NULL, presence TEXT NOT NULL, received_at INTEGER NOT NULL,
             PRIMARY KEY (source, guid)
           );
-          PRAGMA user_version = 2;
+          PRAGMA user_version = 3;
         `);
+        if (version < 3) this.db.run("ALTER TABLE presence ADD COLUMN watch_target TEXT");
         if (version === 1) {
           this.db.run("ALTER TABLE events ADD COLUMN login_id TEXT");
         }
@@ -147,10 +149,11 @@ export class ChatStore {
                 BigInt(String(event.sequence)) > BigInt(prior.sequence))) {
             this.db.query(`
               INSERT OR REPLACE INTO presence
-                (source, guid, login_id, started_at, captured_at, sequence, presence, received_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (source, guid, login_id, started_at, captured_at, sequence, presence, received_at, watch_target)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(batch.source_id, recipient, session.login_id, session.started_at,
-              String(event.captured_at), String(event.sequence), String(event.presence), now);
+              String(event.captured_at), String(event.sequence), String(event.presence), now,
+              event.presence === "offline" || !event.watch_target ? null : JSON.stringify(event.watch_target));
           }
         }
         if (recipient && content) {
@@ -203,8 +206,17 @@ export class ChatStore {
 
   private presence(source: string, guid: string): PresenceRow | null {
     return this.db.query<PresenceRow, [string, string]>(
-      "SELECT login_id, started_at, captured_at, sequence, presence FROM presence WHERE source = ? AND guid = ?",
+      "SELECT login_id, started_at, captured_at, sequence, presence, watch_target FROM presence " +
+      "WHERE source = ? AND guid = ?",
     ).get(source, guid);
+  }
+
+  watchedGuid(source: string, observer: string): string | null {
+    const presence = this.presence(source, observer);
+    if (!presence) return null;
+    if (presence.presence === "offline") return observer;
+    if (Math.max(0, this.now() - Date.parse(presence.captured_at)) >= 15000) return null;
+    return presence.watch_target ? (JSON.parse(presence.watch_target) as Character).guid : observer;
   }
 
   history(source: string, guid: string, cursor?: string, currentSession = false): {
